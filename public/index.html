@@ -43,21 +43,21 @@ header{display:flex;gap:14px;align-items:center;padding:14px 26px;border-bottom:
 .search input{background:none;border:0;outline:0;color:var(--text);flex:1;font:14px Inter}
 .avatar{margin-left:auto;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--silver),#a58bad);color:#0B080D;display:grid;place-items:center;font-weight:700;border:2px solid var(--gold)}
 .content{flex:1;overflow:auto;padding:26px 30px 60px}
-.hero{border:1px solid var(--goldline);border-radius:12px;padding:26px 28px 24px;margin-bottom:24px;position:relative;overflow:hidden;
+.hero{border:1px solid var(--goldline);border-radius:12px;padding:16px 22px 16px;margin-bottom:18px;position:relative;overflow:hidden;
   background:linear-gradient(125deg,rgba(129,40,68,.38),rgba(89,55,95,.32) 55%,rgba(23,16,25,.55));box-shadow:inset 0 0 0 4px rgba(11,8,13,.35),inset 0 0 0 5px rgba(233,189,135,.10)}
 .hero::after{content:"";position:absolute;right:-40px;top:-60px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(233,189,135,.18),transparent 65%)}
-.hero .eyebrow{font:600 11px Inter;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.hero .eyebrow{font:600 10px Inter;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;display:flex;align-items:center;gap:10px}
 .hero .eyebrow::before,.hero .eyebrow::after{content:"";height:1px;width:34px;background:linear-gradient(90deg,transparent,var(--gold))}
 .hero .eyebrow::after{transform:scaleX(-1)}
-.hero h1{font-family:Cinzel,serif;font-size:28px;letter-spacing:.04em;margin-bottom:8px;background:linear-gradient(90deg,#F7EFF5,#E9BD87);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .lead{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;color:var(--silver);margin-bottom:14px;max-width:620px}
-.queens{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px;position:relative;z-index:1}
-.queen{flex:1 1 240px;max-width:340px;border-radius:10px;padding:12px 16px;background:rgba(11,8,13,.55);border:1px solid var(--line);border-left:3px solid var(--red)}
+.hero h1{font-family:Cinzel,serif;font-size:22px;letter-spacing:.04em;margin-bottom:4px;background:linear-gradient(90deg,#F7EFF5,#E9BD87);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .lead{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px;color:var(--silver);margin-bottom:0;max-width:620px}
+.queens{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;position:relative;z-index:1}
+.queen{flex:0 1 auto;border-radius:8px;padding:7px 14px;background:rgba(11,8,13,.55);border:1px solid var(--line);border-left:3px solid var(--red)}
 .queen.jalter{border-left-color:#8c62a0}
 .queen b{display:block;font:600 14px Cinzel,serif;letter-spacing:.06em;color:var(--text)}
-.queen small{display:block;font:11px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:2px 0 6px}
-.queen span{font-size:12.5px;color:var(--silver);opacity:.85;line-height:1.5}
-.hero p{color:var(--silver);font-size:14px;max-width:600px;opacity:.88;line-height:1.6;position:relative;z-index:1}
+.queen small{display:block;font:10px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:1px 0 0}
+.queen span{display:none;font-size:12.5px;color:var(--silver);opacity:.85;line-height:1.5}
+.hero p{display:none;color:var(--silver);font-size:14px;max-width:600px;opacity:.88;line-height:1.6;position:relative;z-index:1}
 .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .crumbs{font-family:Cinzel,serif;font-size:18px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .crumbs a{cursor:pointer;color:var(--silver)}.crumbs a:hover{color:var(--red)}
@@ -196,7 +196,7 @@ button.avatar{cursor:pointer;font:700 14px Inter}
   </header>
 
   <div class="content" id="content">
-    <div class="hero">
+    <div class="hero" id="hero">
       <div class="eyebrow">Our Royal Sanctuary</div>
       <h1>Welcome home, my king.</h1>
       <div class="lead">A private kingdom where everything we treasure is kept safe.</div>
@@ -331,6 +331,7 @@ function actsHTML(i){
   <button class="ib" data-a="del" data-id="${i.id}" title="Delete">🗑</button>`;
 }
 function render(){
+  $('#hero').style.display=(view==='all'&&!cwd&&!query)?'':'none';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===view));
   $('#viewList').classList.toggle('on',layout==='list');$('#viewGrid').classList.toggle('on',layout==='grid');
   const names={all:'All files',recent:'Recent',starred:'Starred',shared:'Shared',trash:'Deleted files'};
