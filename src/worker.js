@@ -1,7 +1,7 @@
 import { sigv4Presign, uriEncode } from './sigv4.js';
 
 const QUOTA = 10 * 1000 ** 3; // B2 free tier: 10 GB
-const MAX_FILE = 5 * 1024 ** 3; // single presigned PUT limit
+const MAX_FILE = 95 * 1000 ** 2; // Cloudflare's free plan caps request bodies at 100 MB
 const SESSION_TTL = 7 * 24 * 3600; // 7 days
 const COOKIE = 'av_session';
 const PURGE_BATCH = 30; // keep subrequests low on the Workers free plan
@@ -263,7 +263,7 @@ async function api(request, env, ctx, url) {
     const name = b && cleanName(b.name);
     const size = b && Number.isFinite(b.size) ? Math.floor(b.size) : -1;
     if (!name || size < 0) return json({ error: 'Invalid file' }, 400);
-    if (size > MAX_FILE) return json({ error: 'File is over the 5 GB limit' }, 413);
+    if (size > MAX_FILE) return json({ error: 'Files over 95 MB are not supported yet' }, 413);
     if ((await usedBytes(env)) + size > QUOTA) return json({ error: 'The vault is full (10 GB)' }, 413);
     const parent = b.parent || null;
     if (parent) {
@@ -275,7 +275,23 @@ async function api(request, env, ctx, url) {
     const key = 'f/' + id;
     await env.DB.prepare("INSERT INTO items (id, name, type, parent, size, mime, b2_key, status, mod) VALUES (?, ?, 'file', ?, ?, ?, ?, 'pending', ?)")
       .bind(id, name, parent, size, mime, key, Date.now()).run();
-    return json({ id, uploadUrl: await b2Presign(env, 'PUT', key, 3600) }, 201);
+    return json({ id }, 201);
+  }
+
+  if ((mm = p.match(/^\/api\/files\/([\w-]+)\/content$/)) && m === 'PUT') {
+    const row = await getItem(env, mm[1]);
+    if (!row || row.type !== 'file' || row.status !== 'pending') return json({ error: 'Not found' }, 404);
+    const len = parseInt(request.headers.get('content-length') || '', 10);
+    if (!Number.isFinite(len) || len < 0 || len > MAX_FILE) return json({ error: 'Invalid file size' }, 413);
+    const up = await fetch(await b2Presign(env, 'PUT', row.b2_key, 600), {
+      method: 'PUT',
+      body: len > 0 ? request.body : null,
+      headers: { 'content-length': String(len), 'content-type': row.mime || 'application/octet-stream' },
+    });
+    if (!up.ok) return json({ error: 'Storage rejected the upload (' + up.status + ')' }, 502);
+    await env.DB.prepare("UPDATE items SET status = 'ready', size = ?, mod = ? WHERE id = ?")
+      .bind(len, Date.now(), row.id).run();
+    return json(itemOut(await getItem(env, row.id)));
   }
 
   if ((mm = p.match(/^\/api\/files\/([\w-]+)\/complete$/)) && m === 'POST') {
