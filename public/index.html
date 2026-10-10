@@ -356,15 +356,22 @@ $('#newFolder').onclick=()=>{
   $('#nfok').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};
 };
 
-/* ---------- uploads (browser -> B2 via presigned URL) ---------- */
+/* ---------- uploads (browser -> Worker -> B2) ---------- */
 $('#uploadBtn').onclick=()=>$('#picker').click();
 $('#picker').onchange=e=>{upload([...e.target.files]);e.target.value=''};
 function putWithProgress(url,file,onp){
   return new Promise((res,rej)=>{
     const x=new XMLHttpRequest();x.open('PUT',url);
+    x.setRequestHeader('X-Requested-With','vault');
+    if(file.type)x.setRequestHeader('Content-Type',file.type);
     x.upload.onprogress=e=>{if(e.lengthComputable)onp(e.loaded/e.total)};
-    x.onload=()=>x.status>=200&&x.status<300?res():rej(new Error('Storage rejected the upload ('+x.status+')'));
-    x.onerror=()=>rej(new Error('Upload blocked — check the B2 bucket CORS rules (see DEPLOY.md)'));
+    x.onload=()=>{
+      let d=null;try{d=JSON.parse(x.responseText)}catch{}
+      if(x.status===401){showLogin();return rej(new Error('Signed out'))}
+      if(x.status>=200&&x.status<300&&d)return res(d);
+      rej(new Error((d&&d.error)||('Upload failed ('+x.status+')')));
+    };
+    x.onerror=()=>rej(new Error('Upload failed — check your connection'));
     x.send(file);
   });
 }
@@ -374,12 +381,12 @@ async function upload(files){
   if(view!=='all'){view='all';cwd=null}
   let ok=0;
   for(const f of files){
+    if(f.size>95e6){toast(f.name+': files over 95 MB are not supported yet');continue}
     const t=toast('Sealing '+f.name+'…',true);
     try{
       const init=await api('/api/files/init',{method:'POST',body:{name:f.name,size:f.size,mime:f.type||'application/octet-stream',parent}});
-      await putWithProgress(init.uploadUrl,f,p=>{t.textContent='Sealing '+f.name+' — '+Math.round(p*100)+'%'});
-      patchLocal(await api(`/api/files/${init.id}/complete`,{method:'POST'}));ok++;
-      used+=f.size;render();
+      patchLocal(await putWithProgress(`/api/files/${init.id}/content`,f,p=>{t.textContent='Sealing '+f.name+' — '+Math.round(p*100)+'%'}));
+      ok++;used+=f.size;render();
     }catch(e){if(e.message!=='Signed out')toast(f.name+': '+e.message)}
     t.remove();
   }
@@ -414,3 +421,4 @@ addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dc=0;$('#d
 </script>
 </body>
 </html>
+
