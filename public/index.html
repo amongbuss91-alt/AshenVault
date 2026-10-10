@@ -96,6 +96,49 @@ tr.row:hover .acts,.card:hover .acts{opacity:1}
 #toasts{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--panel2);border:1px solid var(--red);border-left-width:4px;padding:11px 16px;border-radius:6px;font-size:13px;animation:in .25s}
 @keyframes in{from{opacity:0;transform:translateX(30px)}}
+
+/* Immersive file reader: controls stay beside, never on top of, the page */
+#reader{position:fixed;inset:0;z-index:75;display:none;background:rgba(5,3,6,.97);grid-template-rows:auto minmax(0,1fr);color:var(--text)}
+#reader.on{display:grid}
+.reader-head{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:#100910;min-width:0}
+.reader-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.reader-layout{min-height:0;display:grid;grid-template-columns:64px minmax(0,1fr) 270px}
+.reader-rail{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;border-right:1px solid var(--line);background:#100910}
+.reader-stage{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:12px}
+.reader-canvas{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.reader-canvas img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;object-position:center;transform-origin:center center;transition:transform .12s}
+.reader-sidebar{min-width:0;overflow:auto;border-left:1px solid var(--line);background:#100910;padding:14px}
+.reader-sidebar h3{font:600 14px Cinzel,serif;margin-bottom:10px;overflow-wrap:anywhere}
+.reader-sidebar p{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:12px}
+.reader-sidebar pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 ui-monospace,monospace;color:var(--silver)}
+.reader-pages{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px;border-top:1px solid var(--line)}
+.reader-btn{background:var(--panel2);border:1px solid var(--line);color:var(--silver);border-radius:5px;padding:7px 10px;cursor:pointer}
+.reader-btn:hover{border-color:var(--red);color:white}
+.reader-btn:disabled{opacity:.35;cursor:not-allowed}
+#readerText{width:100%;height:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace;color:var(--silver);padding:24px;max-width:1000px;margin:auto}
+.reader-zoom{font-size:12px;color:var(--muted);min-width:44px;text-align:center}
+
+@media(max-width:800px){
+  #reader{grid-template-rows:auto minmax(0,1fr)}
+  .reader-layout{display:block;position:relative;min-height:0;overflow:hidden}
+  .reader-rail,.reader-sidebar{display:none}
+  .reader-stage{position:absolute;inset:0;padding:0;overflow:hidden}
+  .reader-canvas{width:100%;height:100%;overflow:hidden;touch-action:pan-y pinch-zoom}
+  .reader-canvas img{max-width:100%;max-height:100%;object-fit:contain}
+  .reader-head{padding:7px 9px;gap:6px}
+  .reader-name{max-width:38vw;font-size:12px}
+  #readerDownload{font-size:0;padding:7px 9px}
+  #readerDownload::after{content:"↓";font-size:14px}
+  #readerZoomIn,#readerZoomOut,#readerZoomLabel{display:none}
+  #readerFit{display:none}
+  #readerRotate{display:none}
+  .mobile-page-nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none;padding:0 8px}
+  .mobile-page-nav button{pointer-events:auto;border:1px solid rgba(207,211,222,.28);background:rgba(9,6,10,.38);color:white;width:38px;height:62px;border-radius:8px;font-size:22px;opacity:.7}
+  .mobile-page-nav button:active{opacity:1;background:rgba(211,32,47,.6)}
+}
+@media(min-width:801px){.mobile-page-nav{display:none}}
+
+
 @media(max-width:760px){aside{display:none}.content{padding:18px 14px}.hide-m{display:none}}
 button.avatar{cursor:pointer;font:700 14px Inter}
 #login{z-index:90;background:rgba(5,3,6,.94)}
@@ -171,6 +214,24 @@ button.avatar{cursor:pointer;font:700 14px Inter}
 
 <div class="drop" id="drop">⚔ Release to seal<br>files in the vault</div>
 <div class="modal" id="modal"><div class="box" id="box"></div></div>
+<div id="reader" aria-label="File reader">
+  <div class="reader-head">
+    <button class="reader-btn" id="readerClose" title="Close reader">✕</button>
+    <div class="reader-name" id="readerName"></div>
+    <button class="reader-btn" id="readerZoomOut" title="Zoom out">−</button>
+    <span class="reader-zoom" id="readerZoomLabel">100%</span>
+    <button class="reader-btn" id="readerZoomIn" title="Zoom in">＋</button>
+    <button class="reader-btn" id="readerDownload">↓ Download</button>
+  </div>
+  <div class="reader-layout">
+    <div class="reader-rail">
+      <button class="reader-btn" id="readerFit" title="Fit to window">⛶</button>
+      <button class="reader-btn" id="readerRotate" title="Rotate image">↻</button>
+    </div>
+    <div class="reader-stage"><div class="reader-canvas" id="readerCanvas"></div><div class="mobile-page-nav"><button id="readerPrev" aria-label="Previous page">‹</button><button id="readerNext" aria-label="Next page">›</button></div></div>
+    <aside class="reader-sidebar" id="readerSidebar"><h3>File details</h3><p id="readerMeta"></p><div id="readerTextSide"></div></aside>
+  </div>
+</div>
 <div id="toasts"></div>
 <input type="file" id="picker" multiple hidden>
 
@@ -324,25 +385,81 @@ function download(i){
 function modal(html){$('#box').innerHTML=html;$('#modal').classList.add('on')}
 function closeModal(){$('#modal').classList.remove('on')}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal'||e.target.dataset.close!==undefined)closeModal()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeModal();closeReader()}
+  if($('#reader').classList.contains('on')&&isImg(readerItem?.name)){
+    if(e.key==='ArrowRight')moveReaderPage(1);
+    if(e.key==='ArrowLeft')moveReaderPage(-1);
+  }
+});
+let readerItem=null, readerZoom=1, readerRotation=0, readerTextContent='';
+function closeReader(){$('#reader').classList.remove('on');$('#readerCanvas').innerHTML='';readerItem=null}
+function updateReaderZoom(){
+  $('#readerZoomLabel').textContent=Math.round(readerZoom*100)+'%';
+  const im=$('#readerCanvas img');if(im)im.style.transform=`rotate(${readerRotation}deg) scale(${readerZoom})`;
+}
+$('#readerClose').onclick=closeReader;
+$('#readerDownload').onclick=()=>{if(readerItem)download(readerItem)};
+$('#readerZoomIn').onclick=()=>{readerZoom=Math.min(4,readerZoom+.1);updateReaderZoom()};
+$('#readerZoomOut').onclick=()=>{readerZoom=Math.max(.2,readerZoom-.1);updateReaderZoom()};
+$('#readerFit').onclick=()=>{readerZoom=1;readerRotation=0;$('#readerCanvas').scrollTop=0;$('#readerCanvas').scrollLeft=0;updateReaderZoom()};
+$('#readerRotate').onclick=()=>{readerRotation=(readerRotation+90)%360;updateReaderZoom()};
+let readerPages=[],readerPageIndex=-1,touchStartX=0,touchStartY=0;
+function refreshReaderPage(){
+  if(readerPageIndex<0||readerPageIndex>=readerPages.length)return;
+  const item=readerPages[readerPageIndex];
+  readerItem=item;$('#readerName').textContent=item.name;
+  $('#readerMeta').textContent=`${fmt(item.size)} · Modified ${ago(item.mod)} · ${ext(item.name).toUpperCase()}`;
+  $('#readerCanvas').innerHTML='';
+  const im=document.createElement('img');im.src=dlUrl(item.id,true);im.alt=item.name;im.draggable=false;
+  $('#readerCanvas').appendChild(im);updateReaderZoom();
+}
+function moveReaderPage(delta){
+  if(!readerPages.length)return;
+  const next=readerPageIndex+delta;
+  if(next<0||next>=readerPages.length)return;
+  readerPageIndex=next;readerZoom=1;readerRotation=0;refreshReaderPage();
+}
+$('#readerPrev').onclick=()=>moveReaderPage(-1);
+$('#readerNext').onclick=()=>moveReaderPage(1);
+$('#readerCanvas').addEventListener('touchstart',e=>{
+  if(!$('#reader').classList.contains('on')||!isImg(readerItem?.name)||e.touches.length!==1)return;
+  touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;
+},{passive:true});
+$('#readerCanvas').addEventListener('touchend',e=>{
+  if(!$('#reader').classList.contains('on')||!isImg(readerItem?.name)||e.changedTouches.length!==1)return;
+  const dx=e.changedTouches[0].clientX-touchStartX,dy=e.changedTouches[0].clientY-touchStartY;
+  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.25)moveReaderPage(dx<0?1:-1);
+},{passive:true});
 async function preview(i){
-  let body;
-  if(isImg(i.name))body=`<img src="${dlUrl(i.id,true)}" alt="">`;
-  else if(isText(i.name)&&i.size<=5e7)body=`<pre id="pv">Loading…</pre>`;
-  else body=`<p style="color:var(--muted)">No preview available for this file type.<br>${fmt(i.size)} · modified ${ago(i.mod)}</p>`;
-  modal(`<h3>${esc(i.name)}</h3>${body}<div class="row-btns"><button class="btn" data-close>Close</button><button class="btn primary" id="pvdl">Download</button></div>`);
-  $('#pvdl').onclick=()=>download(i);
-  const pv=$('#pv');
-  if(pv){
+  readerItem=i;readerZoom=1;readerRotation=0;readerTextContent='';
+  readerPages=isImg(i.name)?visible().filter(x=>x.type==='file'&&isImg(x.name)): [];
+  readerPageIndex=readerPages.findIndex(x=>x.id===i.id);
+  $('#readerName').textContent=i.name;
+  $('#readerMeta').textContent=`${fmt(i.size)} · Modified ${ago(i.mod)} · ${ext(i.name).toUpperCase()||'FILE'}`;
+  $('#readerCanvas').innerHTML='';$('#readerTextSide').innerHTML='';
+  $('#reader').classList.add('on');
+  if(isImg(i.name)){
+    const im=document.createElement('img');im.src=dlUrl(i.id,true);im.alt=i.name;im.draggable=false;
+    $('#readerCanvas').appendChild(im);
+    $('#readerTextSide').innerHTML='<p>Manga / image page</p><p>On mobile, swipe left or right to move between image pages. You can also tap the edge arrows.</p>';
+    updateReaderZoom();
+  }else if(isText(i.name)&&i.size<=5e7){
+    $('#readerCanvas').innerHTML='<pre id="readerText">Loading text…</pre>';
     try{
-      const r=await fetch(dlUrl(i.id,true),{headers:{Range:'bytes=0-200000'},credentials:'same-origin'});
-      if(r.status===401){closeModal();return showLogin()}
-      if(!r.ok)throw 0;
-      let t=await r.text();if(i.size>200001)t+='\n\n… (preview truncated)';
-      pv.textContent=t||'(empty file)';
-    }catch{pv.textContent='Could not load preview.'}
+      const r=await fetch(dlUrl(i.id,true),{headers:{Range:'bytes=0-2000000'},credentials:'same-origin'});
+      if(r.status===401){closeReader();return showLogin()}
+      if(!r.ok)throw new Error('Could not load preview.');
+      readerTextContent=await r.text();
+      if(i.size>2000001)readerTextContent+='\n\n… (preview truncated)';
+      $('#readerText').textContent=readerTextContent||'(empty file)';
+      $('#readerTextSide').innerHTML='<p>Text preview</p><p>The reading area is fitted to the available window. Use the browser zoom controls if needed.</p>';
+    }catch{$('#readerText').textContent='Could not load preview.'}
+  }else{
+    $('#readerCanvas').innerHTML='<div style="text-align:center;color:var(--muted);line-height:1.8">No in-browser preview for this file type.<br>'+esc(fmt(i.size))+'<br>Use Download to open it in another app.</div>';
   }
 }
+
 function rename(i){
   modal(`<h3>Rename</h3><input id="rn" value="${esc(i.name)}"><div class="row-btns"><button class="btn" data-close>Cancel</button><button class="btn primary" id="rnok">Save</button></div>`);
   const inp=$('#rn');inp.focus();inp.select();
@@ -421,4 +538,3 @@ addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dc=0;$('#d
 </script>
 </body>
 </html>
-
