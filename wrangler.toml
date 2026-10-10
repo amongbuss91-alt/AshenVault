@@ -1,0 +1,26 @@
+name = "ashen-vault"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# Serves ./public (the vault UI). Requests to /api/* and /s/* run the Worker first.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/s/*"]
+
+# File index (names, folders, stars, trash, share links). Created in DEPLOY.md step 3.
+[[d1_databases]]
+binding = "DB"
+database_name = "ashen-vault"
+database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
+
+# Non-secret settings: edit these two.
+[vars]
+B2_ENDPOINT = "s3.us-west-004.backblazeb2.com"   # from your bucket's page in B2 (no https://)
+B2_BUCKET = "your-bucket-name"
+
+# Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
+#   VAULT_PASSWORD   the login password
+#   SESSION_SECRET   long random string used to sign login cookies
+#   B2_KEY_ID        B2 application key ID
+#   B2_APP_KEY       B2 application key
