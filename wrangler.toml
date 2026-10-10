@@ -11,13 +11,13 @@ run_worker_first = ["/api/*", "/s/*"]
 # File index (names, folders, stars, trash, share links). Created in DEPLOY.md step 3.
 [[d1_databases]]
 binding = "DB"
-database_name = "ashen-vault"
+database_name = "ashenvault"
 database_id = "0af6c319-6003-4371-a500-8086f0542f3c"
 
 # Non-secret settings: edit these two.
 [vars]
-B2_ENDPOINT = "s3.us-west-004.backblazeb2.com"   # from your bucket's page in B2 (no https://)
-B2_BUCKET = "your-bucket-name"
+B2_ENDPOINT = "s3.us-east-005.backblazeb2.com"
+B2_BUCKET = "ashen-vault"
 
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
 #   VAULT_PASSWORD   the login password
