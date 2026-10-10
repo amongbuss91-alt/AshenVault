@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ashen Vault — Cloud Storage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#09060a; --panel:#120b10; --panel2:#1a0f16; --line:#2e1a24;
+  --red:#d3202f; --red2:#8f0f1e; --silver:#cfd3de; --muted:#8c8393;
+  --ember:#f2a516; --violet:#4b1346; --text:#f1ecf1;
+  --glow:0 0 18px rgba(211,32,47,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;display:flex}
+#embers{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.7}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(900px 500px at 85% -10%,rgba(211,32,47,.18),transparent 60%),
+             radial-gradient(700px 500px at -10% 110%,rgba(75,19,70,.35),transparent 60%)}
+aside,main{position:relative;z-index:1}
+aside{width:250px;flex:none;background:linear-gradient(180deg,var(--panel),#0c070b);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px 18px;font-family:Cinzel,serif;font-weight:700;font-size:20px;letter-spacing:.06em}
+.brand svg{filter:drop-shadow(var(--glow))}
+.brand span em{color:var(--red);font-style:normal}
+.newbtn{margin:0 6px 14px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border:0;border-radius:6px;padding:11px;font:600 14px Inter;cursor:pointer;box-shadow:var(--glow);transition:.2s;display:flex;gap:8px;align-items:center;justify-content:center}
+.newbtn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+nav a{display:flex;align-items:center;gap:12px;padding:10px 14px;margin:2px 0;border-radius:6px;color:var(--silver);text-decoration:none;font-size:14px;cursor:pointer;border-left:3px solid transparent;transition:.15s}
+nav a:hover{background:var(--panel2)}
+nav a.on{background:linear-gradient(90deg,rgba(211,32,47,.22),transparent);border-left-color:var(--red);color:#fff}
+nav svg{width:18px;height:18px;flex:none}
+.meter{margin-top:auto;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:12px;color:var(--muted)}
+.bar{height:6px;border-radius:4px;background:#2a1a22;margin:8px 0;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--ember));width:0;transition:width .5s}
+.meter b{color:var(--silver);font-weight:600}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+header{display:flex;gap:14px;align-items:center;padding:14px 26px;border-bottom:1px solid var(--line);background:rgba(18,11,16,.7);backdrop-filter:blur(8px)}
+.search{flex:1;max-width:560px;display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:9px 14px;transition:.2s}
+.search:focus-within{border-color:var(--red);box-shadow:var(--glow)}
+.search input{background:none;border:0;outline:0;color:var(--text);flex:1;font:14px Inter}
+.avatar{margin-left:auto;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--silver),#6b6f80);color:#14090e;display:grid;place-items:center;font-weight:700;border:2px solid var(--red)}
+.content{flex:1;overflow:auto;padding:26px 30px 60px}
+.hero{border:1px solid var(--line);border-radius:10px;padding:22px 26px;margin-bottom:24px;position:relative;overflow:hidden;
+  background:linear-gradient(120deg,rgba(143,15,30,.35),rgba(75,19,70,.25) 55%,rgba(9,6,10,.2))}
+.hero::after{content:"";position:absolute;right:-40px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(242,165,22,.25),transparent 65%)}
+.hero h1{font-family:Cinzel,serif;font-size:24px;letter-spacing:.04em;margin-bottom:6px}
+.hero p{color:var(--silver);font-size:14px;max-width:560px;opacity:.85}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.crumbs{font-family:Cinzel,serif;font-size:18px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.crumbs a{cursor:pointer;color:var(--silver)}.crumbs a:hover{color:var(--red)}
+.crumbs span{color:var(--muted)}
+.tools{margin-left:auto;display:flex;gap:8px}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--silver);padding:8px 13px;border-radius:6px;font:500 13px Inter;cursor:pointer;display:flex;gap:7px;align-items:center;transition:.15s}
+.btn:hover{border-color:var(--red);color:#fff}
+.btn.on{background:rgba(211,32,47,.2);border-color:var(--red);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font:600 11px Inter;letter-spacing:.1em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+th:hover{color:var(--silver)}
+td{padding:11px 12px;border-bottom:1px solid #1d1119}
+tr.row{cursor:pointer;transition:.12s}
+tr.row:hover{background:var(--panel2)}
+.nm{display:flex;align-items:center;gap:12px}
+.ico{width:34px;height:34px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;flex:none}
+.folder{background:linear-gradient(135deg,var(--violet),#2a0b28);color:var(--ember)}
+.file{background:linear-gradient(135deg,var(--red2),#3b0912);color:#ffd9dc}
+.img{background:linear-gradient(135deg,#444a5c,#20232e);color:var(--silver)}
+.star{color:var(--ember)}
+.acts{opacity:0;display:flex;gap:4px;justify-content:flex-end;transition:.12s}
+tr.row:hover .acts,.card:hover .acts{opacity:1}
+.ib{background:none;border:1px solid transparent;color:var(--silver);padding:5px 7px;border-radius:5px;cursor:pointer;font-size:13px}
+.ib:hover{border-color:var(--red);color:#fff;background:rgba(211,32,47,.15)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px;cursor:pointer;transition:.18s;position:relative}
+.card:hover{border-color:var(--red);transform:translateY(-2px);box-shadow:var(--glow)}
+.card .ico{width:100%;height:96px;font-size:18px;margin-bottom:10px;border-radius:8px;overflow:hidden}
+.card .ico img{width:100%;height:100%;object-fit:cover}
+.card .t{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .s{font-size:11px;color:var(--muted);margin-top:3px}
+.card .acts{position:absolute;top:8px;right:8px;background:rgba(9,6,10,.85);border-radius:6px}
+.empty{text-align:center;padding:70px 20px;color:var(--muted)}
+.empty h3{font-family:Cinzel,serif;color:var(--silver);margin-bottom:6px}
+.drop{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(9,6,10,.88);border:3px dashed var(--red);font-family:Cinzel,serif;font-size:28px;text-align:center;line-height:1.5}
+.drop.on{display:grid}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(5,3,6,.8);display:none;place-items:center;backdrop-filter:blur(4px)}
+.modal.on{display:grid}
+.box{background:var(--panel);border:1px solid var(--red);border-radius:10px;padding:22px;max-width:min(720px,92vw);max-height:86vh;overflow:auto;box-shadow:var(--glow);min-width:320px}
+.box h3{font-family:Cinzel,serif;margin-bottom:14px;word-break:break-all}
+.box img{max-width:100%;border-radius:6px}
+.box pre{white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;color:var(--silver)}
+.box input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px;border-radius:6px;font:14px Inter;outline:0;margin-bottom:14px}
+.box input:focus{border-color:var(--red)}
+.row-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.primary{background:linear-gradient(135deg,var(--red),var(--red2));border:0;color:#fff}
+#toasts{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--panel2);border:1px solid var(--red);border-left-width:4px;padding:11px 16px;border-radius:6px;font-size:13px;animation:in .25s}
+@keyframes in{from{opacity:0;transform:translateX(30px)}}
+@media(max-width:760px){aside{display:none}.content{padding:18px 14px}.hide-m{display:none}}
+</style>
+</head>
+<body>
+<canvas id="embers"></canvas>
+
+<aside>
+  <div class="brand">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <path d="M4 22 L7 8 L12 15 L16 5 L20 15 L25 8 L28 22 Z" fill="#d3202f" stroke="#cfd3de" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M5 26 H27" stroke="#f2a516" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16 13 l-2 5 h3 l-1 5 4-7h-3 l1-3z" fill="#09060a"/>
+    </svg>
+    <span>ASHEN<em>VAULT</em></span>
+  </div>
+  <button class="newbtn" id="uploadBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Upload files</button>
+  <nav id="nav">
+    <a data-v="all" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>All files</a>
+    <a data-v="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Recent</a>
+    <a data-v="starred"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Starred</a>
+    <a data-v="shared"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg>Shared</a>
+    <a data-v="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Deleted files</a>
+  </nav>
+  <div class="meter">
+    <div><b id="usedTxt">0 B</b> of 10 GB free</div>
+    <div class="bar"><i id="usedBar"></i></div>
+    <div>Forged in black flame. Guarded by rebellion.</div>
+  </div>
+</aside>
+
+<main>
+  <header>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8c8393" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="q" placeholder="Search the vault…">
+    </div>
+    <div class="avatar" title="Account">K</div>
+  </header>
+
+  <div class="content" id="content">
+    <div class="hero">
+      <h1>Your hoard, unbroken.</h1>
+      <p>Store, sync and share every file behind a crimson seal. Drag files anywhere on this page to claim them for the vault.</p>
+    </div>
+    <div class="toolbar">
+      <div class="crumbs" id="crumbs"></div>
+      <div class="tools">
+        <button class="btn" id="newFolder">＋ New folder</button>
+        <button class="btn" id="viewList" title="List">☰</button>
+        <button class="btn" id="viewGrid" title="Grid">▦</button>
+      </div>
+    </div>
+    <div id="list"></div>
+  </div>
+</main>
+
+<div class="drop" id="drop">⚔ Release to seal<br>files in the vault</div>
+<div class="modal" id="modal"><div class="box" id="box"></div></div>
+<div id="toasts"></div>
+<input type="file" id="picker" multiple hidden>
+
+<script>
+const $=s=>document.querySelector(s);
+let view='all', layout='list', cwd=null, sortKey='name', sortDir=1, query='';
+let loading=true, loadError='';
+const D=86400000;
+let items=[], allKeys=[];
+
+// ---------- API helpers ----------
+const api=async(url,opts)=>{
+  const r=await fetch(url,opts);
+  if(!r.ok){let m=r.statusText||'Request failed';try{m=(await r.json()).error||m}catch{}throw new Error(m)}
+  return r;
+};
+const post=(url,body)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+let metaQ=Promise.resolve();
+const metaPost=(key,patch)=>{const p=metaQ.then(()=>post('/api/meta',{key,patch}));metaQ=p.catch(()=>{});return p};
+const chunks=(a,n)=>{const o=[];for(let x=0;x<a.length;x+=n)o.push(a.slice(x,x+n));return o};
+const fileUrl=(k,dl)=>'/api/file?key='+encodeURIComponent(k)+(dl?'&dl=1':'');
+
+const ext=n=>(n.split('.').pop()||'').toLowerCase();
+const isImg=n=>['png','jpg','jpeg','gif','webp','svg','avif'].includes(ext(n));
+const textExts=['txt','md','json','csv','log','js','css','html','xml','yml','yaml','ini','toml'];
+function fmt(b){if(!b)return '—';const u=['B','KB','MB','GB','TB'];let i=0;while(b>=1024&&i<4){b/=1024;i++}return b.toFixed(i?1:0)+' '+u[i]}
+function ago(t){const d=Math.floor((Date.now()-t)/D);if(d<1)return 'Today';if(d===1)return 'Yesterday';if(d<30)return d+' days ago';return new Date(t).toLocaleDateString()}
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function toast(m,ms=2800){const t=document.createElement('div');t.className='toast';t.textContent=m;$('#toasts').appendChild(t);setTimeout(()=>t.remove(),ms);return t}
+const fail=e=>toast(e.message||'Something went wrong',4500);
+
+// ---------- load the vault from B2 ----------
+async function load(){
+  const prevPath=cwd?(items.find(i=>i.id===cwd)||{}).key:null;
+  const {files,meta}=await (await api('/api/files')).json();
+  const out=[], folders=new Map();
+  let id=1;
+  const ensure=p=>{
+    if(folders.has(p))return folders.get(p);
+    const parts=p.split('/'), name=parts.pop();
+    const parent=parts.length?ensure(parts.join('/')).id:null;
+    const m=meta[p]||{};
+    const f={id:id++,key:p,name,type:'folder',parent,size:0,mod:0,star:!!m.star,trash:!!m.trash,shared:!!m.shared};
+    folders.set(p,f);out.push(f);return f;
+  };
+  for(const f of files){
+    const k=f.key, slash=k.lastIndexOf('/');
+    const dir=slash>=0?k.slice(0,slash):null, base=k.slice(slash+1);
+    const folder=dir?ensure(dir):null;
+    if(base==='.keep'){if(folder)folder.mod=Math.max(folder.mod,f.mod);continue}
+    const m=meta[k]||{};
+    const it={id:id++,key:k,name:base,type:'file',parent:folder?folder.id:null,size:f.size,mod:f.mod,star:!!m.star,trash:!!m.trash,shared:!!m.shared};
+    if(isImg(base))it.url=fileUrl(k);
+    out.push(it);
+    let d=dir;
+    while(d){const fo=folders.get(d);fo.mod=Math.max(fo.mod,f.mod);const s=d.lastIndexOf('/');d=s>=0?d.slice(0,s):null}
+  }
+  out.forEach(i=>{if(i.type==='folder'&&!i.mod)i.mod=Date.now()});
+  // items inside a trashed folder shouldn't show up in search/starred/recent
+  const byId=new Map(out.map(i=>[i.id,i]));
+  out.forEach(i=>{let p=byId.get(i.parent);while(p){if(p.trash){i.ghost=true;break}p=byId.get(p.parent)}});
+  items=out;allKeys=files.map(f=>f.key);
+  cwd=prevPath&&folders.has(prevPath)?folders.get(prevPath).id:null;
+  loading=false;loadError='';
+}
+async function refresh(){try{await load()}catch(e){loading=false;loadError=e.message}render()}
+
+// ---------- view ----------
+function visible(){
+  let r=items.filter(i=>view==='trash'?i.trash:(!i.trash&&!i.ghost));
+  if(query)r=r.filter(i=>i.name.toLowerCase().includes(query));
+  else if(view==='all')r=r.filter(i=>i.parent===cwd);
+  else if(view==='recent')r=r.filter(i=>i.type==='file').sort((a,b)=>b.mod-a.mod).slice(0,12);
+  else if(view==='starred')r=r.filter(i=>i.star);
+  else if(view==='shared')r=r.filter(i=>i.shared&&i.type==='file');
+  if(view!=='recent'){
+    r.sort((a,b)=>{
+      if(a.type!==b.type)return a.type==='folder'?-1:1;
+      let x=a[sortKey],y=b[sortKey];
+      if(typeof x==='string'){x=x.toLowerCase();y=y.toLowerCase()}
+      return (x>y?1:x<y?-1:0)*sortDir;
+    });
+  }
+  return r;
+}
+function icoHTML(i){
+  if(i.type==='folder')return `<div class="ico folder">DIR</div>`;
+  if(isImg(i.name)&&i.url)return `<div class="ico img"><img loading="lazy" src="${i.url}"></div>`;
+  return `<div class="ico ${isImg(i.name)?'img':'file'}">${esc(ext(i.name).slice(0,4).toUpperCase()||'FILE')}</div>`;
+}
+function actsHTML(i){
+  if(i.trash)return `<button class="ib" data-a="restore" data-id="${i.id}" title="Restore">↺</button><button class="ib" data-a="purge" data-id="${i.id}" title="Delete forever">✕</button>`;
+  return `<button class="ib" data-a="star" data-id="${i.id}" title="Star">${i.star?'★':'☆'}</button>
+  ${i.type==='file'?`<button class="ib" data-a="share" data-id="${i.id}" title="Copy 7-day link">⇪</button><button class="ib" data-a="dl" data-id="${i.id}" title="Download">⭳</button>`:''}
+  <button class="ib" data-a="rename" data-id="${i.id}" title="Rename">✎</button>
+  <button class="ib" data-a="del" data-id="${i.id}" title="Delete">🗑</button>`;
+}
+function render(){
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===view));
+  $('#viewList').classList.toggle('on',layout==='list');$('#viewGrid').classList.toggle('on',layout==='grid');
+  const names={all:'All files',recent:'Recent',starred:'Starred',shared:'Shared',trash:'Deleted files'};
+  let c='';
+  if(view==='all'&&!query){
+    c=`<a data-c="root">All files</a>`;
+    const path=[];let p=cwd;while(p){const f=items.find(x=>x.id===p);path.unshift(f);p=f.parent}
+    path.forEach(f=>c+=`<span>/</span><a data-c="${f.id}">${esc(f.name)}</a>`);
+  }else c=query?`Results for “${esc(query)}”`:names[view];
+  $('#crumbs').innerHTML=c;
+  $('#newFolder').style.display=view==='all'&&!query?'':'none';
+  const used=items.reduce((s,i)=>s+i.size,0);
+  $('#usedTxt').textContent=used?fmt(used):'0 B';$('#usedBar').style.width=Math.min(100,used?Math.max(2,used/1e10*100):0)+'%';
+  if(loading){$('#list').innerHTML=`<div class="empty"><h3>Opening the vault…</h3></div>`;return}
+  if(loadError){$('#list').innerHTML=`<div class="empty"><h3>The vault would not open</h3><p>${esc(loadError)}</p><p style="margin-top:10px">Check the B2 variables in Cloudflare (Settings, Variables and Secrets).</p></div>`;return}
+  const r=visible();
+  if(!r.length){$('#list').innerHTML=`<div class="empty"><h3>The vault is silent</h3><p>${view==='trash'?'Nothing has been cast into the abyss.':'Nothing here. Drop files to fill it.'}</p></div>`;return}
+  if(layout==='grid'){
+    $('#list').innerHTML=`<div class="grid">`+r.map(i=>`<div class="card" data-open="${i.id}">${icoHTML(i)}<div class="t">${i.star?'<span class="star">★</span> ':''}${esc(i.name)}</div><div class="s">${i.type==='folder'?'Folder':fmt(i.size)} · ${ago(i.mod)}</div><div class="acts">${actsHTML(i)}</div></div>`).join('')+`</div>`;
+  }else{
+    const arrow=k=>sortKey===k?(sortDir>0?' ▲':' ▼'):'';
+    $('#list').innerHTML=`<table><thead><tr><th data-s="name">Name${arrow('name')}</th><th data-s="mod" class="hide-m">Modified${arrow('mod')}</th><th data-s="size" class="hide-m">Size${arrow('size')}</th><th></th></tr></thead><tbody>`+
+    r.map(i=>`<tr class="row" data-open="${i.id}"><td><div class="nm">${icoHTML(i)}<span>${i.star?'<span class="star">★</span> ':''}${esc(i.name)}${i.shared&&i.type==='file'?' <span style="color:var(--muted);font-size:11px">· shared</span>':''}</span></div></td><td class="hide-m" style="color:var(--muted)">${ago(i.mod)}</td><td class="hide-m" style="color:var(--muted)">${i.type==='folder'?'—':fmt(i.size)}</td><td><div class="acts">${actsHTML(i)}</div></td></tr>`).join('')+`</tbody></table>`;
+  }
+}
+
+// ---------- events ----------
+$('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;view=a.dataset.v;cwd=null;query='';$('#q').value='';render()});
+$('#crumbs').addEventListener('click',e=>{const a=e.target.closest('[data-c]');if(!a)return;cwd=a.dataset.c==='root'?null:+a.dataset.c;render()});
+$('#viewList').onclick=()=>{layout='list';render()};$('#viewGrid').onclick=()=>{layout='grid';render()};
+$('#q').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();render()});
+$('#list').addEventListener('click',e=>{
+  const th=e.target.closest('th[data-s]');
+  if(th){const k=th.dataset.s;sortDir=sortKey===k?-sortDir:1;sortKey=k;return render()}
+  const b=e.target.closest('[data-a]');
+  if(b){e.stopPropagation();return act(b.dataset.a,items.find(i=>i.id==b.dataset.id))}
+  const o=e.target.closest('[data-open]');
+  if(o){const i=items.find(x=>x.id==o.dataset.open);if(i.trash)return;if(i.type==='folder'){view='all';query='';$('#q').value='';cwd=i.id;render()}else preview(i)}
+});
+
+async function act(a,i){
+  try{
+    if(a==='star'){i.star=!i.star;render();await metaPost(i.key,{star:i.star})}
+    else if(a==='share'){await share(i)}
+    else if(a==='dl'){download(i)}
+    else if(a==='rename'){rename(i)}
+    else if(a==='del'){i.trash=true;render();await metaPost(i.key,{trash:true});await refresh();toast('“'+i.name+'” cast into the abyss')}
+    else if(a==='restore'){i.trash=false;render();await metaPost(i.key,{trash:false});await refresh();toast('Restored')}
+    else if(a==='purge'){
+      if(!confirm('Destroy “'+i.name+'” forever? This cannot be undone.'))return;
+      await destroy(i);await refresh();toast('Destroyed forever');
+    }
+  }catch(e){fail(e);refresh()}
+}
+async function destroy(i){
+  const keys=i.type==='folder'?allKeys.filter(k=>k.startsWith(i.key+'/')):[i.key];
+  for(const c of chunks(keys,40))await post('/api/delete',{keys:c});
+  await post('/api/meta-drop',{prefix:i.key});
+}
+async function moveItem(i,to){
+  const from=i.key;
+  const pairs=i.type==='folder'?allKeys.filter(k=>k.startsWith(from+'/')).map(k=>[k,to+k.slice(from.length)]):[[from,to]];
+  for(const c of chunks(pairs,15))await post('/api/rename',{pairs:c});
+  await post('/api/meta-move',{from,to});
+}
+async function share(i){
+  const {url}=await (await api('/api/share?key='+encodeURIComponent(i.key)+'&days=7')).json();
+  i.shared=true;metaPost(i.key,{shared:true}).catch(()=>{});
+  try{await navigator.clipboard.writeText(url);toast('Link copied. It works for 7 days.')}
+  catch{modal(`<h3>Share link</h3><input id="sl" readonly value="${esc(url)}"><p style="color:var(--muted);font-size:13px">Works for 7 days.</p><div class="row-btns"><button class="btn" data-close>Close</button></div>`);$('#sl').select()}
+  render();
+}
+function download(i){
+  const a=document.createElement('a');a.href=fileUrl(i.key,true);a.download=i.name;
+  document.body.appendChild(a);a.click();a.remove();toast('Downloading '+i.name);
+}
+function modal(html){$('#box').innerHTML=html;$('#modal').classList.add('on')}
+function close(){$('#modal').classList.remove('on')}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal'||e.target.dataset.close!==undefined)close()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+async function preview(i){
+  let body;
+  if(isImg(i.name)&&i.url)body=`<img src="${i.url}">`;
+  else if(textExts.includes(ext(i.name))&&i.size<200000){
+    try{body=`<pre>${esc(await (await api(fileUrl(i.key)+'&raw=1')).text())}</pre>`}
+    catch(e){body=`<p style="color:var(--muted)">Could not load preview.</p>`}
+  }
+  else body=`<p style="color:var(--muted)">No preview available for this file type.<br>${fmt(i.size)} · modified ${ago(i.mod)}</p>`;
+  modal(`<h3>${esc(i.name)}</h3>${body}<div class="row-btns"><button class="btn" data-close>Close</button><button class="btn primary" onclick="download(items.find(x=>x.id==${i.id}))">Download</button></div>`);
+}
+const badName=n=>/[\/\\]/.test(n)||n==='.'||n==='..'||n==='.keep'||/[\u0000-\u001f]/.test(n);
+function rename(i){
+  modal(`<h3>Rename</h3><input id="rn" value="${esc(i.name)}"><div class="row-btns"><button class="btn" data-close>Cancel</button><button class="btn primary" id="rnok">Save</button></div>`);
+  const inp=$('#rn');inp.focus();inp.select();
+  const go=async()=>{
+    const n=inp.value.trim();
+    if(!n||n===i.name){close();return}
+    if(badName(n)){toast('That name is not allowed');return}
+    if(items.some(x=>x.parent===i.parent&&x.type===i.type&&x.name===n&&x.id!==i.id)){toast('Something with that name already exists here');return}
+    const dir=i.key.includes('/')?i.key.slice(0,i.key.lastIndexOf('/')+1):'';
+    close();
+    try{await moveItem(i,dir+n);await refresh();toast('Renamed')}catch(e){fail(e)}
+  };
+  $('#rnok').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};
+}
+$('#newFolder').onclick=()=>{
+  modal(`<h3>New folder</h3><input id="nf" placeholder="Folder name"><div class="row-btns"><button class="btn" data-close>Cancel</button><button class="btn primary" id="nfok">Create</button></div>`);
+  const inp=$('#nf');inp.focus();
+  const go=async()=>{
+    const n=inp.value.trim();if(!n)return;
+    if(badName(n)){toast('That name is not allowed');return}
+    if(items.some(x=>x.parent===cwd&&x.type==='folder'&&x.name===n)){toast('A folder with that name already exists');return}
+    const parentKey=cwd?items.find(x=>x.id===cwd).key+'/':'';
+    close();
+    try{await post('/api/mkdir',{path:parentKey+n});await refresh()}catch(e){fail(e)}
+  };
+  $('#nfok').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};
+};
+
+// ---------- uploads ----------
+$('#uploadBtn').onclick=()=>$('#picker').click();
+$('#picker').onchange=e=>{upload(e.target.files);e.target.value=''};
+async function upload(fileList){
+  const list=[...fileList].filter(f=>f.name);
+  if(!list.length)return;
+  const base=view==='all'?cwd:null;
+  const dir=base?items.find(i=>i.id===base).key+'/':'';
+  const taken=new Set(items.filter(i=>i.parent===base&&i.type==='file').map(i=>i.name));
+  const uniq=n=>{
+    if(!taken.has(n))return n;
+    const dot=n.lastIndexOf('.'),b=dot>0?n.slice(0,dot):n,x=dot>0?n.slice(dot):'';
+    let c=1,r;do{r=`${b} (${c++})${x}`}while(taken.has(r));return r;
+  };
+  let ok=0;
+  for(let n=0;n<list.length;n++){
+    const f=list[n];
+    if(badName(f.name)){fail(new Error(f.name+': name not allowed'));continue}
+    const name=uniq(f.name);taken.add(name);
+    const t=toast(`Uploading ${f.name} (${n+1}/${list.length})…`,300000);
+    try{
+      await api('/api/upload?key='+encodeURIComponent(dir+name),{method:'PUT',headers:{'Content-Type':f.type||'application/octet-stream'},body:f});
+      ok++;
+    }catch(e){fail(new Error(f.name+': '+e.message))}
+    t.remove();
+  }
+  if(view!=='all'){view='all';cwd=null}
+  await refresh();
+  if(ok)toast(ok+' file'+(ok>1?'s':'')+' sealed in the vault');
+}
+let dc=0;
+addEventListener('dragenter',e=>{e.preventDefault();dc++;$('#drop').classList.add('on')});
+addEventListener('dragleave',e=>{dc--;if(dc<=0){dc=0;$('#drop').classList.remove('on')}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();dc=0;$('#drop').classList.remove('on');if(e.dataTransfer.files.length)upload(e.dataTransfer.files)});
+
+// ---------- embers ----------
+(()=>{
+  const c=$('#embers'),x=c.getContext('2d');let W,H,p=[];
+  const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
+  for(let i=0;i<55;i++)p.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*2+.5,v:Math.random()*.5+.2,d:Math.random()*Math.PI*2,h:Math.random()>.7?42:353});
+  (function tick(){
+    x.clearRect(0,0,W,H);
+    p.forEach(o=>{o.y-=o.v;o.d+=.01;o.x+=Math.sin(o.d)*.4;if(o.y<-5){o.y=H+5;o.x=Math.random()*W}
+      x.beginPath();x.arc(o.x,o.y,o.r,0,7);x.fillStyle=`hsla(${o.h},90%,55%,${.25+o.r/5})`;x.shadowColor=`hsl(${o.h},90%,55%)`;x.shadowBlur=8;x.fill()});
+    requestAnimationFrame(tick);
+  })();
+})();
+
+render();
+refresh();
+
+</script>
+</body>
+</html>
