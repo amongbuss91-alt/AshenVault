@@ -304,6 +304,9 @@ $('#avatar').onclick=()=>{
 /* ---------- listing ---------- */
 function hiddenByTrash(i){let p=i.parent;while(p){const f=byId(p);if(!f)return false;if(f.trash)return true;p=f.parent}return false}
 const natCmp=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
+/* name sort groups: 0 = everything else, 1 = numbered webp (1.webp / _1.webp), 2 = gif (always last) */
+const nameGroup=n=>ext(n)==='gif'?2:(/^_?\d+\.webp$/i.test(n)?1:0);
+const sortName=n=>nameGroup(n)===1?n.replace(/^_/,''):n;
 function visible(){
   let r=items.filter(i=>view==='trash'?i.trash:(!i.trash&&!hiddenByTrash(i)));
   if(query)r=r.filter(i=>i.name.toLowerCase().includes(query));
@@ -315,6 +318,11 @@ function visible(){
     r.sort((a,b)=>{
       if(a.type!==b.type)return a.type==='folder'?-1:1;
       let x=a[sortKey],y=b[sortKey];
+      if(sortKey==='name'){
+        const ga=nameGroup(a.name),gb=nameGroup(b.name);
+        if(ga!==gb)return ga-gb;   // group order stays fixed even when the sort is flipped
+        return natCmp.compare(sortName(a.name),sortName(b.name))*sortDir;
+      }
       if(typeof x==='string')return natCmp.compare(x,y)*sortDir;
       return (x>y?1:x<y?-1:natCmp.compare(a.name,b.name))*sortDir;
     });
