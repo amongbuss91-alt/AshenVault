@@ -96,7 +96,7 @@ tr.row:hover .acts,.card:hover .acts{opacity:1}
 #toasts{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--panel2);border:1px solid var(--red);border-left-width:4px;padding:11px 16px;border-radius:6px;font-size:13px;animation:in .25s}
 @keyframes in{from{opacity:0;transform:translateX(30px)}}
-@media(max-width:760px){aside{display:none}.content{padding:18px 14px}.hide-m{display:none}}
+@media(max-width:760px){aside{position:fixed;left:0;top:0;bottom:0;z-index:70;width:250px;transform:translateX(-100%);transition:transform .22s}body.menu-open aside{transform:none}#scrim{position:fixed;inset:0;z-index:65;background:rgba(5,3,6,.65)}body.menu-open #scrim{display:block}.content{padding:18px 14px}.hide-m{display:none}}
 button.avatar{cursor:pointer;font:700 14px Inter}
 #login{z-index:90;background:rgba(5,3,6,.94)}
 #login .box{width:min(380px,92vw);text-align:center}
@@ -130,6 +130,26 @@ button.avatar{cursor:pointer;font:700 14px Inter}
 #sortSel option{background:var(--panel2);color:var(--text)}
 .box video{width:100%;max-height:68vh;border-radius:6px;background:#000;display:block}
 .box audio{width:100%;display:block}
+#scrim{display:none}
+aside{transition:width .2s,padding .2s}
+@media(min-width:761px){
+body.collapsed aside{width:68px;padding:18px 10px}
+body.collapsed .lbl,body.collapsed .mtxt{display:none}
+body.collapsed .brand{justify-content:center;padding:4px 0 18px}
+body.collapsed .newbtn,body.collapsed #uploadFolderBtn{margin-left:0;margin-right:0;padding-left:0;padding-right:0}
+body.collapsed nav a{justify-content:center;padding:10px 0}
+body.collapsed .meter{padding:8px 6px}
+}
+#sortSel{max-width:100%}
+.meter{cursor:pointer;transition:border-color .15s}.meter:hover{border-color:var(--red)}
+.stbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#2a1a22;margin-bottom:14px}
+.stbar i{display:block;height:100%;min-width:2px}
+.strow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #1d1119;font-size:13px}
+.strow .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.strow .sn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.strow .sc{color:var(--muted);width:72px;text-align:right}
+.strow .sz{color:var(--silver);width:72px;text-align:right}
+.strow .sp{color:var(--muted);width:48px;text-align:right}
 </style>
 </head>
 <body>
@@ -142,26 +162,28 @@ button.avatar{cursor:pointer;font:700 14px Inter}
       <path d="M5 26 H27" stroke="#f2a516" stroke-width="2" stroke-linecap="round"/>
       <path d="M16 13 l-2 5 h3 l-1 5 4-7h-3 l1-3z" fill="#09060a"/>
     </svg>
-    <span>ASHEN<em>VAULT</em></span>
+    <span class="lbl">ASHEN<em>VAULT</em></span>
   </div>
-  <button class="newbtn" id="uploadBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Upload files</button>
-  <button class="btn" id="uploadFolderBtn" style="margin:-4px 6px 14px;justify-content:center">&#128193; Upload folder</button>
+  <button class="newbtn" id="uploadBtn" title="Upload files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Upload files</span></button>
+  <button class="btn" id="uploadFolderBtn" title="Upload folder" style="margin:-4px 6px 14px;justify-content:center">&#128193;<span class="lbl">Upload folder</span></button>
   <nav id="nav">
-    <a data-v="all" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>All files</a>
-    <a data-v="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Recent</a>
-    <a data-v="starred"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Starred</a>
-    <a data-v="shared"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg>Shared</a>
-    <a data-v="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Deleted files</a>
+    <a data-v="all" class="on" title="All files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lbl">All files</span></a>
+    <a data-v="recent" title="Recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Recent</span></a>
+    <a data-v="starred" title="Starred"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg><span class="lbl">Starred</span></a>
+    <a data-v="shared" title="Shared"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg><span class="lbl">Shared</span></a>
+    <a data-v="trash" title="Deleted files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span class="lbl">Deleted files</span></a>
   </nav>
   <div class="meter">
-    <div><b id="usedTxt">0 B</b> of <span id="quotaTxt">10 GB</span> used</div>
+    <div class="mtxt"><b id="usedTxt">0 B</b> of <span id="quotaTxt">10 GB</span> used</div>
     <div class="bar"><i id="usedBar"></i></div>
-    <div>Forged in black flame. Guarded by rebellion.</div>
+    <div class="mtxt">Forged in black flame. Guarded by rebellion.</div>
   </div>
 </aside>
+<div id="scrim"></div>
 
 <main>
   <header>
+    <button class="btn" id="menuBtn" title="Collapse or expand the sidebar" aria-label="Toggle sidebar" style="padding:8px 11px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8c8393" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
       <input id="q" placeholder="Search the vault…">
@@ -226,7 +248,7 @@ button.avatar{cursor:pointer;font:700 14px Inter}
 
 <script>
 const $=s=>document.querySelector(s);
-let view='all', layout='list', cwd=null, sortKey='name', sortDir=1, query='';
+let view='all', layout='grid', cwd=null, sortKey='name', sortDir=1, query='';
 let items=[], used=0, quota=10e9;
 const D=86400000;
 
@@ -238,6 +260,7 @@ const isImg=n=>['png','jpg','jpeg','gif','webp','avif','bmp'].includes(ext(n));
 const isVid=n=>['mp4','m4v','webm','mov','ogv'].includes(ext(n));
 const isAud=n=>['mp3','m4a','aac','wav','ogg','oga','opus','flac'].includes(ext(n));
 const isText=n=>['txt','md','json','csv','log','xml','yml','yaml','ini'].includes(ext(n));
+try{const l=localStorage.getItem('av_layout');if(l==='list'||l==='grid')layout=l}catch{}
 const dlUrl=(id,inline)=>`/api/files/${id}/download${inline?'?inline=1':''}`;
 function fmt(b){if(!b)return '—';const u=['B','KB','MB','GB'];let i=0;while(b>=1000&&i<3){b/=1000;i++}return b.toFixed(i?1:0)+' '+u[i]}
 function ago(t){const d=Math.floor((Date.now()-t)/D);if(d<1)return 'Today';if(d===1)return 'Yesterday';if(d<30)return d+' days ago';return new Date(t).toLocaleDateString()}
@@ -298,7 +321,11 @@ function visible(){
 }
 function icoHTML(i){
   if(i.type==='folder')return `<div class="ico folder">DIR</div>`;
-  if(isImg(i.name))return `<div class="ico img"><img loading="lazy" src="${dlUrl(i.id,true)}" alt=""></div>`;
+  if(isImg(i.name)){
+    const full=dlUrl(i.id,true);
+    if(i.thumb)return `<div class="ico img"><img loading="lazy" src="${thumbUrl(i.id)}" data-id="${i.id}" data-full="${full}" onerror="thumbFallback(this)" alt=""></div>`;
+    return `<div class="ico img"><img loading="lazy" src="${full}" data-bf="${i.id}" alt=""></div>`;
+  }
   return `<div class="ico file">${esc(ext(i.name).slice(0,4).toUpperCase()||'FILE')}</div>`;
 }
 function actsHTML(i){
@@ -324,6 +351,7 @@ function render(){
   $('#crumbs').innerHTML=c;
   $('#newFolder').style.display=view==='all'&&!query?'':'none';
   const r=visible();
+  $('.meter').title=fmt(used)+' of '+fmt(quota)+' used — click for a breakdown';
   $('#usedTxt').textContent=used?fmt(used):'0 B';
   $('#quotaTxt').textContent=fmt(quota);
   $('#usedBar').style.width=(used?Math.max(1,used/quota*100):0)+'%';
@@ -341,7 +369,8 @@ function render(){
 $('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;view=a.dataset.v;cwd=null;query='';$('#q').value='';render()});
 $('#crumbs').addEventListener('click',e=>{const a=e.target.closest('[data-c]');if(!a)return;cwd=a.dataset.c==='root'?null:a.dataset.c;render()});
 $('#sortSel').onchange=e=>{const [k,d]=e.target.value.split('|');sortKey=k;sortDir=+d;render()};
-$('#viewList').onclick=()=>{layout='list';render()};$('#viewGrid').onclick=()=>{layout='grid';render()};
+const setLayout=l=>{layout=l;try{localStorage.setItem('av_layout',l)}catch{}render()};
+$('#viewList').onclick=()=>setLayout('list');$('#viewGrid').onclick=()=>setLayout('grid');
 $('#q').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();render()});
 $('#list').addEventListener('click',e=>{
   const th=e.target.closest('th[data-s]');
@@ -378,7 +407,17 @@ function download(i){
   const a=document.createElement('a');a.href=dlUrl(i.id);a.download=i.name;document.body.appendChild(a);a.click();a.remove();toast('Downloading '+i.name);
 }
 function modal(html){$('#box').innerHTML=html;$('#modal').classList.add('on')}
-function closeModal(){$('#modal').classList.remove('on');$('#box').innerHTML=''}
+let modalResolve=null;
+function closeModal(){
+  if(modalResolve){const r=modalResolve;modalResolve=null;r(null)}
+  $('#modal').classList.remove('on');$('#box').innerHTML='';
+}
+function ask(html,wire){
+  return new Promise(res=>{
+    modalResolve=res;modal(html);
+    wire(v=>{modalResolve=null;closeModal();res(v)});
+  });
+}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal'||e.target.dataset.close!==undefined)closeModal()});
 document.addEventListener('keydown',e=>{
   if($('#viewer').classList.contains('on')){
@@ -414,7 +453,7 @@ let vlist=[],vidx=0,vwheel=0;
 function openViewer(i){
   vlist=visible().filter(x=>x.type==='file'&&isImg(x.name));
   vidx=Math.max(0,vlist.findIndex(x=>x.id===i.id));
-  $('#vside').innerHTML=vlist.map((x,k)=>`<img loading="lazy" data-k="${k}" src="${dlUrl(x.id,true)}" alt="${esc(x.name)}">`).join('');
+  $('#vside').innerHTML=vlist.map((x,k)=>`<img loading="lazy" data-k="${k}" src="${x.thumb?thumbUrl(x.id):dlUrl(x.id,true)}" alt="${esc(x.name)}">`).join('');
   $('#viewer').classList.add('on');
   showImg();
 }
@@ -509,13 +548,59 @@ async function ensurePath(base,dirs){
   for(const d of dirs)p=await ensureFolder(p,d);
   return p;
 }
+const hexOf=buf=>[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+async function sha256(file){
+  if(file.size>150e6||!(window.crypto&&crypto.subtle))return null;
+  try{return hexOf(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))}catch{return null}
+}
+function pathOf(i){const p=[i.name];let c=i.parent;while(c){const f=byId(c);if(!f)break;p.unshift(f.name);c=f.parent}return p.join(' / ')}
+function findDup(name,size,sha,parent){
+  const live=items.filter(i=>i.type==='file'&&!i.trash&&!hiddenByTrash(i));
+  if(sha){const m=live.find(i=>i.sha&&i.sha===sha);if(m)return {item:m,why:'identical content'}}
+  const m=live.find(i=>i.parent===parent&&i.name===name&&i.size===size);
+  return m?{item:m,why:'same name and size'}:null;
+}
+async function askDup(f,dup,remaining){
+  const html=`<h3>Already in the vault</h3>
+    <p style="color:var(--silver);font-size:14px;line-height:1.6;margin-bottom:14px"><b>${esc(f.name)}</b> looks like a copy of <b>${esc(pathOf(dup.item))}</b> (${dup.why}).</p>
+    ${remaining>0?'<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="dupAll" style="width:auto;margin:0;padding:0"> Do this for the rest of this upload</label>':''}
+    <div class="row-btns"><button class="btn" id="dupSkip">Skip</button><button class="btn primary" id="dupKeep">Upload anyway</button></div>`;
+  const r=await ask(html,done=>{
+    const all=()=>!!($('#dupAll')&&$('#dupAll').checked);
+    $('#dupSkip').onclick=()=>done({a:'skip',all:all()});
+    $('#dupKeep').onclick=()=>done({a:'keep',all:all()});
+  });
+  return r||{a:'skip',all:false};
+}
+async function uploadParts(init,f,label,t){
+  const {id,partSize,parts}=init,have=new Set(init.done||[]);
+  for(let n=1;n<=parts;n++){
+    if(have.has(n))continue;
+    const start=(n-1)*partSize,blob=f.slice(start,Math.min(f.size,n*partSize));
+    let tries=0;
+    for(;;){
+      try{
+        await putWithProgress(`/api/files/${id}/parts/${n}`,blob,p=>{
+          t.textContent='Sealing '+label+' — '+Math.round((start+p*blob.size)/f.size*100)+'% (part '+n+'/'+parts+')';
+        });
+        break;
+      }catch(e){
+        if(e.message==='Signed out')throw e;
+        if(++tries>=3)throw new Error(e.message+' — choose the same file again to resume');
+        t.textContent='Retrying part '+n+'/'+parts+'…';
+        await new Promise(r=>setTimeout(r,1500*tries));
+      }
+    }
+  }
+  return api(`/api/files/${id}/complete`,{method:'POST'});
+}
 async function upload(entries,emptyDirs){
   entries=entries.filter(e=>!SKIP.has(e.file.name.toLowerCase())).sort((a,b)=>cmpName(a.file.name,b.file.name));
   if(!entries.length&&!(emptyDirs&&emptyDirs.length))return;
   const base=view==='all'?cwd:null;
   if(view!=='all'){view='all';cwd=null}
   folderCache.clear();
-  let ok=0,fail=0,done=0;
+  let ok=0,fail=0,skipped=0,done=0,dupMode=null;
   const total=entries.length;
   const t=toast('Preparing…',true);
   try{
@@ -524,13 +609,24 @@ async function upload(entries,emptyDirs){
     for(const {file:f,dirs} of entries){
       done++;
       const label=(total>1?'('+done+'/'+total+') ':'')+f.name;
-      if(f.size>95e6){fail++;toast(f.name+': files over 95 MB are not supported yet');continue}
-      t.textContent='Sealing '+label+'…';
       try{
         const parent=await ensurePath(base,dirs);
-        const init=await api('/api/files/init',{method:'POST',body:{name:f.name,size:f.size,mime:f.type||'application/octet-stream',parent}});
-        patchLocal(await putWithProgress(`/api/files/${init.id}/content`,f,p=>{t.textContent='Sealing '+label+' — '+Math.round(p*100)+'%'}));
+        t.textContent='Checking '+label+'…';
+        const sha=await sha256(f);
+        const dup=findDup(f.name,f.size,sha,parent);
+        if(dup){
+          let act=dupMode;
+          if(!act){const r=await askDup(f,dup,total-done);act=r.a;if(r.all)dupMode=act}
+          if(act==='skip'){skipped++;continue}
+        }
+        t.textContent='Sealing '+label+'…';
+        const init=await api('/api/files/init',{method:'POST',body:{name:f.name,size:f.size,mime:f.type||'application/octet-stream',parent,sha}});
+        const item=init.multipart
+          ? await uploadParts(init,f,label,t)
+          : await putWithProgress(`/api/files/${init.id}/content`,f,p=>{t.textContent='Sealing '+label+' — '+Math.round(p*100)+'%'});
+        patchLocal(item);
         ok++;used+=f.size;
+        await thumbForUpload(item,f);
         if(done%5===0||done===total)render();
       }catch(e){
         if(e.message==='Signed out')break;
@@ -540,8 +636,12 @@ async function upload(entries,emptyDirs){
   }catch(e){if(e.message!=='Signed out')toast(e.message)}
   t.remove();
   await run(load);
-  if(ok)toast(ok+' file'+(ok>1?'s':'')+' sealed in the vault'+(fail?' ('+fail+' failed)':''));
-  else if(!fail&&emptyDirs&&emptyDirs.length)toast('Folder created');
+  const bits=[];
+  if(ok)bits.push(ok+' file'+(ok>1?'s':'')+' sealed in the vault');
+  if(skipped)bits.push(skipped+' duplicate'+(skipped>1?'s':'')+' skipped');
+  if(fail)bits.push(fail+' failed');
+  if(bits.length)toast(bits.join(' · '));
+  else if(emptyDirs&&emptyDirs.length)toast('Folder created');
 }
 
 /* read dropped files and folders (must start synchronously inside the drop event) */
@@ -579,6 +679,102 @@ addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();dc++;
 addEventListener('dragleave',e=>{if(!hasFiles(e))return;dc--;if(dc<=0){dc=0;$('#drop').classList.remove('on')}});
 addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault()});
 addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dc=0;$('#drop').classList.remove('on');handleDrop(e.dataTransfer)});
+
+/* ---------- sidebar collapse ---------- */
+const mq=matchMedia('(max-width:760px)');
+try{if(localStorage.getItem('av_side')==='1')document.body.classList.add('collapsed')}catch{}
+$('#menuBtn').onclick=()=>{
+  if(mq.matches){document.body.classList.toggle('menu-open');return}
+  const c=document.body.classList.toggle('collapsed');
+  try{localStorage.setItem('av_side',c?'1':'0')}catch{}
+};
+$('#scrim').onclick=()=>document.body.classList.remove('menu-open');
+$('#nav').addEventListener('click',()=>document.body.classList.remove('menu-open'));
+
+/* ---------- thumbnails ---------- */
+const thumbUrl=id=>`/api/files/${id}/thumb`;
+function thumbFallback(im){
+  const it=byId(im.dataset.id);if(it)it.thumb=false;
+  im.removeAttribute('onerror');im.dataset.bf=im.dataset.id;im.src=im.dataset.full;
+}
+function thumbFrom(src){
+  const w=src.naturalWidth||src.width,h=src.naturalHeight||src.height;
+  if(!w||!h)return Promise.resolve(null);
+  const s=Math.min(1,360/Math.max(w,h));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*s));c.height=Math.max(1,Math.round(h*s));
+  c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+  return new Promise(r=>c.toBlob(b=>{
+    if(b&&b.type==='image/webp')return r(b);
+    c.toBlob(r,'image/jpeg',0.82);
+  },'image/webp',0.8));
+}
+async function putThumb(id,blob){
+  const r=await fetch(`/api/files/${id}/thumb`,{method:'PUT',credentials:'same-origin',headers:{'X-Requested-With':'vault','Content-Type':blob.type},body:blob});
+  if(!r.ok)throw new Error('thumb '+r.status);
+}
+async function thumbForUpload(item,f){
+  if(!isImg(item.name)||f.size>40e6)return;
+  const url=URL.createObjectURL(f);
+  try{
+    const im=new Image();im.src=url;await im.decode();
+    const b=await thumbFrom(im);
+    if(b){await putThumb(item.id,b);const it=byId(item.id);if(it)it.thumb=true}
+  }catch{}
+  URL.revokeObjectURL(url);
+}
+const thumbQ=[],thumbBusy=new Set();let thumbRun=0;
+function queueThumb(im){
+  const id=im.dataset.bf;delete im.dataset.bf;
+  if(!id||thumbBusy.has(id))return;
+  thumbBusy.add(id);thumbQ.push({id,im});pumpThumbs();
+}
+function pumpThumbs(){
+  while(thumbRun<2&&thumbQ.length){
+    const {id,im}=thumbQ.shift();thumbRun++;
+    (async()=>{
+      try{const b=await thumbFrom(im);if(b){await putThumb(id,b);const it=byId(id);if(it)it.thumb=true}}
+      catch{}
+      finally{thumbRun--;pumpThumbs()}
+    })();
+  }
+}
+$('#list').addEventListener('load',e=>{const im=e.target;if(im.tagName==='IMG'&&im.dataset.bf)queueThumb(im)},true);
+
+/* ---------- storage breakdown ---------- */
+const CATS=[['Images','#d3202f'],['Videos','#f2a516'],['Audio','#9b6bd3'],['Documents','#cfd3de'],['Archives','#4fb3a9'],['Other','#8c8393']];
+const TRASH_COL='#6b2a38';
+const DOCX=new Set(['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf','odt','ods','csv','json','xml','epub']);
+const ARCX=new Set(['zip','rar','7z','tar','gz','bz2','xz','iso']);
+function catOf(n){
+  const e=ext(n);
+  if(isImg(n)||['svg','heic','heif','tif','tiff','ico','raw','psd'].includes(e))return 0;
+  if(isVid(n)||['mkv','avi','wmv','flv','mpg','mpeg','3gp'].includes(e))return 1;
+  if(isAud(n)||e==='wma')return 2;
+  if(DOCX.has(e))return 3;
+  if(ARCX.has(e))return 4;
+  return 5;
+}
+function showStorage(){
+  const files=items.filter(i=>i.type==='file');
+  const rows=CATS.map(([name,col])=>({name,col,n:0,size:0}));
+  const trash={name:'In deleted files',col:TRASH_COL,n:0,size:0};
+  for(const f of files){const r=(f.trash||hiddenByTrash(f))?trash:rows[catOf(f.name)];r.n++;r.size+=f.size}
+  const all=[...rows,trash].filter(r=>r.n);
+  const total=all.reduce((s,r)=>s+r.size,0);
+  const pct=v=>total?(v/total*100):0;
+  const top=[...files].sort((a,b)=>b.size-a.size).slice(0,5);
+  const bar=total?`<div class="stbar">${all.filter(r=>r.size>0).map(r=>`<i style="width:${pct(r.size)}%;background:${r.col}" title="${esc(r.name)}"></i>`).join('')}</div>`:'<div class="stbar"></div>';
+  const list=all.length?all.map(r=>`<div class="strow"><span class="sw" style="background:${r.col}"></span><span class="sn">${esc(r.name)}</span><span class="sc">${r.n} file${r.n>1?'s':''}</span><span class="sz">${fmt(r.size)}</span><span class="sp">${pct(r.size).toFixed(1)}%</span></div>`).join(''):'<p style="color:var(--muted);font-size:14px">Nothing stored yet.</p>';
+  modal(`<h3>Storage</h3>
+    <p style="font-size:14px;color:var(--silver);margin-bottom:12px"><b style="color:var(--text)">${total?fmt(total):'0 B'}</b> of ${fmt(quota)} used · ${fmt(Math.max(0,quota-total))} free</p>
+    ${bar}${list}
+    ${top.length?`<h3 style="font-size:14px;margin:18px 0 8px">Largest files</h3>`+top.map(f=>`<div class="strow"><span class="sn" style="flex:1">${esc(f.name)}</span><span class="sz">${fmt(f.size)}</span></div>`).join(''):''}
+    <div class="row-btns"><button class="btn" data-close>Close</button></div>`);
+}
+{
+  const mt=$('.meter');mt.setAttribute('role','button');mt.setAttribute('tabindex','0');
+  mt.onclick=showStorage;mt.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showStorage()}};
+}
 
 /* ---------- embers ---------- */
 (()=>{
