@@ -1,10 +1,12 @@
 import { sigv4Presign, uriEncode } from './sigv4.js';
 
 const QUOTA = 10 * 1000 ** 3; // B2 free tier: 10 GB
-const MAX_FILE = 95 * 1000 ** 2; // Cloudflare's free plan caps request bodies at 100 MB
+const SINGLE_MAX = 90 * 1000 ** 2; // up to here: one request. Cloudflare's free plan caps request bodies at 100 MB
+const PART_SIZE = 50 * 1024 * 1024; // bigger files are uploaded in 50 MiB parts
+const THUMB_MAX = 512 * 1024;
 const SESSION_TTL = 7 * 24 * 3600; // 7 days
 const COOKIE = 'av_session';
-const PURGE_BATCH = 30; // keep subrequests low on the Workers free plan
+const PURGE_BATCH = 20; // keep subrequests low on the Workers free plan
 const SAFE_IMG = /^image\/(png|jpe?g|gif|webp|avif|bmp)$/i;
 const MEDIA = {
   mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', ogv: 'video/ogg',
@@ -72,6 +74,8 @@ function itemOut(r) {
     parent: r.parent,
     size: r.size,
     mime: r.mime,
+    sha: r.sha256 || null,
+    thumb: !!r.thumb,
     star: !!r.star,
     trash: !!r.trash,
     shared: !!r.share_token,
@@ -129,17 +133,38 @@ async function login(request, env, url) {
 
 /* ---------- Backblaze B2 (S3 API) ---------- */
 
-function b2Presign(env, method, key, expires = 900) {
+function b2Presign(env, method, key, expires = 900, query = {}) {
   need(env, ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET', 'B2_ENDPOINT']);
   const host = env.B2_ENDPOINT;
-  const region = host.split('.')[1];
+  const region = env.B2_REGION || host.split('.')[1];
+  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? 'http' : 'https';
   const path = '/' + env.B2_BUCKET + '/' + key.split('/').map(uriEncode).join('/');
-  return sigv4Presign({ method, host, path, region, keyId: env.B2_KEY_ID, secret: env.B2_APP_KEY, expires });
+  return sigv4Presign({ method, host, path, region, keyId: env.B2_KEY_ID, secret: env.B2_APP_KEY, expires, query, scheme });
+}
+
+async function b2Fetch(env, method, key, { query = {}, body, headers, expires = 300 } = {}) {
+  return fetch(await b2Presign(env, method, key, expires, query), { method, body, headers });
 }
 
 async function b2Delete(env, key) {
-  const res = await fetch(await b2Presign(env, 'DELETE', key, 60), { method: 'DELETE' });
+  const res = await b2Fetch(env, 'DELETE', key, { expires: 60 });
   if (!res.ok && res.status !== 404) throw new HttpError(502, 'B2 delete failed (' + res.status + ')');
+}
+
+async function mpCreate(env, key) {
+  const r = await b2Fetch(env, 'POST', key, { query: { uploads: '' } });
+  const t = await r.text();
+  const id = (t.match(/<UploadId>([^<]+)<\/UploadId>/) || [])[1];
+  if (!r.ok || !id) throw new HttpError(502, 'Storage could not start the upload (' + r.status + ')');
+  return id;
+}
+
+async function mpAbort(env, key, uploadId) {
+  try {
+    await b2Fetch(env, 'DELETE', key, { query: { uploadId }, expires: 60 });
+  } catch (e) {
+    console.error('abort failed', e);
+  }
 }
 
 async function serveFile(env, request, row, inline) {
@@ -190,9 +215,38 @@ async function getItem(env, id) {
   return env.DB.prepare('SELECT * FROM items WHERE id = ?').bind(id).first();
 }
 
-async function usedBytes(env) {
-  const r = await env.DB.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM items WHERE type = 'file'").first();
-  return r.n;
+async function usage(env) {
+  return env.DB.prepare(
+    "SELECT COALESCE(SUM(CASE WHEN status = 'ready' THEN size END), 0) AS ready, COALESCE(SUM(CASE WHEN status = 'pending' THEN size END), 0) AS pending FROM items WHERE type = 'file'",
+  ).first();
+}
+
+// Adds the newer columns/tables on first use, so no manual database step is needed.
+let schemaPromise = null;
+function ensureSchema(env) {
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      const info = await env.DB.prepare('PRAGMA table_info(items)').all();
+      const cols = new Set(info.results.map((c) => c.name));
+      for (const col of ['upload_id', 'sha256', 'thumb']) {
+        if (!cols.has(col)) {
+          try {
+            await env.DB.prepare(`ALTER TABLE items ADD COLUMN ${col} TEXT`).run();
+          } catch (e) {
+            console.error('migration', col, e);
+          }
+        }
+      }
+      await env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS parts (item_id TEXT NOT NULL, n INTEGER NOT NULL, etag TEXT NOT NULL, size INTEGER NOT NULL, PRIMARY KEY (item_id, n))',
+      ).run();
+      await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_items_sha ON items(sha256)').run();
+    })().catch((e) => {
+      schemaPromise = null;
+      throw e;
+    });
+  }
+  return schemaPromise;
 }
 
 async function descendants(env, id) {
@@ -203,7 +257,7 @@ async function descendants(env, id) {
     for (let i = 0; i < frontier.length; i += 90) {
       const chunk = frontier.slice(i, i + 90);
       const ph = chunk.map(() => '?').join(',');
-      const { results } = await env.DB.prepare(`SELECT id, type, b2_key FROM items WHERE parent IN (${ph})`).bind(...chunk).all();
+      const { results } = await env.DB.prepare(`SELECT id, type, b2_key, thumb FROM items WHERE parent IN (${ph})`).bind(...chunk).all();
       out.push(...results);
       next.push(...results.filter((r) => r.type === 'folder').map((r) => r.id));
     }
@@ -227,20 +281,27 @@ async function api(request, env, ctx, url) {
   }
   if (!(await isAuthed(env, request))) return json({ error: 'Unauthorized' }, 401);
   if (p === '/api/me' && m === 'GET') return json({ ok: true });
+  await ensureSchema(env);
 
   let mm;
 
   if (p === '/api/items' && m === 'GET') {
-    // sweep uploads that never finished
-    const stale = await env.DB.prepare("SELECT id, b2_key FROM items WHERE status = 'pending' AND mod < ? LIMIT 20")
-      .bind(Date.now() - 24 * 3600 * 1000).all();
+    // sweep uploads that never finished (single uploads after 6 h, multi-part after 3 days of silence)
+    const now = Date.now();
+    const stale = await env.DB.prepare(
+      "SELECT id, b2_key, upload_id FROM items WHERE status = 'pending' AND ((upload_id IS NULL AND mod < ?) OR (upload_id IS NOT NULL AND mod < ?)) LIMIT 10",
+    ).bind(now - 6 * 3600 * 1000, now - 3 * 24 * 3600 * 1000).all();
     if (stale.results.length) {
       ctx.waitUntil(
         (async () => {
           for (const r of stale.results) {
             try {
-              await b2Delete(env, r.b2_key);
-              await env.DB.prepare('DELETE FROM items WHERE id = ?').bind(r.id).run();
+              if (r.upload_id) await mpAbort(env, r.b2_key, r.upload_id);
+              else await b2Delete(env, r.b2_key);
+              await env.DB.batch([
+                env.DB.prepare('DELETE FROM parts WHERE item_id = ?').bind(r.id),
+                env.DB.prepare('DELETE FROM items WHERE id = ?').bind(r.id),
+              ]);
             } catch (e) {
               console.error('stale sweep failed', e);
             }
@@ -249,7 +310,7 @@ async function api(request, env, ctx, url) {
       );
     }
     const { results } = await env.DB.prepare("SELECT * FROM items WHERE status = 'ready'").all();
-    return json({ items: results.map(itemOut), used: await usedBytes(env), quota: QUOTA });
+    return json({ items: results.map(itemOut), used: (await usage(env)).ready, quota: QUOTA });
   }
 
   if (p === '/api/folders' && m === 'POST') {
@@ -273,26 +334,53 @@ async function api(request, env, ctx, url) {
     const name = b && cleanName(b.name);
     const size = b && Number.isFinite(b.size) ? Math.floor(b.size) : -1;
     if (!name || size < 0) return json({ error: 'Invalid file' }, 400);
-    if (size > MAX_FILE) return json({ error: 'Files over 95 MB are not supported yet' }, 413);
-    if ((await usedBytes(env)) + size > QUOTA) return json({ error: 'The vault is full (10 GB)' }, 413);
+    if (size > QUOTA) return json({ error: 'The vault is full (10 GB)' }, 413);
     const parent = b.parent || null;
     if (parent) {
       const pr = await getItem(env, parent);
       if (!pr || pr.type !== 'folder') return json({ error: 'Parent folder not found' }, 400);
     }
+    const sha = typeof b.sha === 'string' && /^[a-f0-9]{64}$/.test(b.sha) ? b.sha : null;
+    const parts = Math.ceil(size / PART_SIZE);
+
+    if (size > SINGLE_MAX) {
+      // an interrupted upload of the same file? pick it up where it stopped
+      const ex = await env.DB.prepare(
+        "SELECT * FROM items WHERE status = 'pending' AND upload_id IS NOT NULL AND name = ? AND size = ? AND parent IS ? LIMIT 1",
+      ).bind(name, size, parent).first();
+      if (ex) {
+        const { results } = await env.DB.prepare('SELECT n FROM parts WHERE item_id = ? ORDER BY n').bind(ex.id).all();
+        await env.DB.prepare('UPDATE items SET mod = ?, sha256 = COALESCE(?, sha256) WHERE id = ?').bind(Date.now(), sha, ex.id).run();
+        return json({ id: ex.id, multipart: true, partSize: PART_SIZE, parts, done: results.map((r) => r.n), resumed: true });
+      }
+    }
+
+    const u = await usage(env);
+    if (u.ready + u.pending + size > QUOTA) return json({ error: 'The vault is full (10 GB)' }, 413);
     const mime = typeof b.mime === 'string' && b.mime.length < 128 ? b.mime : 'application/octet-stream';
     const id = crypto.randomUUID();
     const key = 'f/' + id;
-    await env.DB.prepare("INSERT INTO items (id, name, type, parent, size, mime, b2_key, status, mod) VALUES (?, ?, 'file', ?, ?, ?, ?, 'pending', ?)")
-      .bind(id, name, parent, size, mime, key, Date.now()).run();
+    await env.DB.prepare("INSERT INTO items (id, name, type, parent, size, mime, b2_key, sha256, status, mod) VALUES (?, ?, 'file', ?, ?, ?, ?, ?, 'pending', ?)")
+      .bind(id, name, parent, size, mime, key, sha, Date.now()).run();
+
+    if (size > SINGLE_MAX) {
+      try {
+        const uploadId = await mpCreate(env, key);
+        await env.DB.prepare('UPDATE items SET upload_id = ? WHERE id = ?').bind(uploadId, id).run();
+      } catch (e) {
+        await env.DB.prepare('DELETE FROM items WHERE id = ?').bind(id).run();
+        throw e;
+      }
+      return json({ id, multipart: true, partSize: PART_SIZE, parts, done: [] }, 201);
+    }
     return json({ id }, 201);
   }
 
   if ((mm = p.match(/^\/api\/files\/([\w-]+)\/content$/)) && m === 'PUT') {
     const row = await getItem(env, mm[1]);
-    if (!row || row.type !== 'file' || row.status !== 'pending') return json({ error: 'Not found' }, 404);
+    if (!row || row.type !== 'file' || row.status !== 'pending' || row.upload_id) return json({ error: 'Not found' }, 404);
     const len = parseInt(request.headers.get('content-length') || '', 10);
-    if (!Number.isFinite(len) || len < 0 || len > MAX_FILE) return json({ error: 'Invalid file size' }, 413);
+    if (!Number.isFinite(len) || len < 0 || len > SINGLE_MAX) return json({ error: 'Invalid file size' }, 413);
     const up = await fetch(await b2Presign(env, 'PUT', row.b2_key, 600), {
       method: 'PUT',
       body: len > 0 ? request.body : null,
@@ -304,15 +392,88 @@ async function api(request, env, ctx, url) {
     return json(itemOut(await getItem(env, row.id)));
   }
 
+  if ((mm = p.match(/^\/api\/files\/([\w-]+)\/parts\/(\d+)$/)) && m === 'PUT') {
+    const row = await getItem(env, mm[1]);
+    const n = parseInt(mm[2], 10);
+    if (!row || row.type !== 'file' || row.status !== 'pending' || !row.upload_id) return json({ error: 'Not found' }, 404);
+    const total = Math.ceil(row.size / PART_SIZE);
+    if (n < 1 || n > total) return json({ error: 'Bad part number' }, 400);
+    const expected = n < total ? PART_SIZE : row.size - (total - 1) * PART_SIZE;
+    const len = parseInt(request.headers.get('content-length') || '', 10);
+    if (len !== expected) return json({ error: 'Part has the wrong size' }, 400);
+    const up = await b2Fetch(env, 'PUT', row.b2_key, {
+      query: { partNumber: String(n), uploadId: row.upload_id },
+      body: request.body,
+      headers: { 'content-length': String(len) },
+      expires: 900,
+    });
+    const etag = up.headers.get('etag');
+    if (!up.ok || !etag) return json({ error: 'Storage rejected part ' + n + ' (' + up.status + ')' }, 502);
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR REPLACE INTO parts (item_id, n, etag, size) VALUES (?, ?, ?, ?)').bind(row.id, n, etag, len),
+      env.DB.prepare('UPDATE items SET mod = ? WHERE id = ?').bind(Date.now(), row.id),
+    ]);
+    return json({ ok: true, n });
+  }
+
   if ((mm = p.match(/^\/api\/files\/([\w-]+)\/complete$/)) && m === 'POST') {
     const row = await getItem(env, mm[1]);
     if (!row || row.type !== 'file') return json({ error: 'Not found' }, 404);
-    const head = await fetch(await b2Presign(env, 'HEAD', row.b2_key, 60), { method: 'HEAD' });
+    if (row.status === 'ready') return json(itemOut(row));
+    if (row.upload_id) {
+      const total = Math.ceil(row.size / PART_SIZE);
+      const { results } = await env.DB.prepare('SELECT n, etag FROM parts WHERE item_id = ? ORDER BY n').bind(row.id).all();
+      const have = new Set(results.map((r) => r.n));
+      const missing = [];
+      for (let i = 1; i <= total; i++) if (!have.has(i)) missing.push(i);
+      if (missing.length) return json({ error: 'Some parts are missing', missing }, 409);
+      const xml = '<CompleteMultipartUpload>' + results.map((r) => `<Part><PartNumber>${r.n}</PartNumber><ETag>${r.etag}</ETag></Part>`).join('') + '</CompleteMultipartUpload>';
+      const res = await b2Fetch(env, 'POST', row.b2_key, {
+        query: { uploadId: row.upload_id },
+        body: xml,
+        headers: { 'content-type': 'application/xml' },
+        expires: 300,
+      });
+      const txt = await res.text();
+      if (!res.ok || /<Error>/.test(txt)) return json({ error: 'Storage could not assemble the file (' + res.status + ')' }, 502);
+    }
+    const head = await b2Fetch(env, 'HEAD', row.b2_key, { expires: 60 });
     if (!head.ok) return json({ error: 'Upload not found in storage' }, 409);
     const size = parseInt(head.headers.get('content-length') || '', 10);
-    await env.DB.prepare("UPDATE items SET status = 'ready', size = ?, mod = ? WHERE id = ?")
-      .bind(Number.isFinite(size) ? size : row.size, Date.now(), row.id).run();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE items SET status = 'ready', size = ?, mod = ?, upload_id = NULL WHERE id = ?").bind(Number.isFinite(size) ? size : row.size, Date.now(), row.id),
+      env.DB.prepare('DELETE FROM parts WHERE item_id = ?').bind(row.id),
+    ]);
     return json(itemOut(await getItem(env, row.id)));
+  }
+
+  if ((mm = p.match(/^\/api\/files\/([\w-]+)\/thumb$/))) {
+    const row = await getItem(env, mm[1]);
+    if (!row || row.type !== 'file' || row.status !== 'ready') return json({ error: 'Not found' }, 404);
+    if (m === 'PUT') {
+      const ct = (request.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      if (!['image/webp', 'image/jpeg', 'image/png'].includes(ct)) return json({ error: 'Unsupported thumbnail type' }, 415);
+      const len = parseInt(request.headers.get('content-length') || '', 10);
+      if (!(len > 0 && len <= THUMB_MAX)) return json({ error: 'Thumbnail too large' }, 413);
+      const up = await b2Fetch(env, 'PUT', 't/' + row.id, { body: request.body, headers: { 'content-length': String(len), 'content-type': ct } });
+      if (!up.ok) return json({ error: 'Storage rejected the thumbnail (' + up.status + ')' }, 502);
+      await env.DB.prepare('UPDATE items SET thumb = ? WHERE id = ?').bind(ct, row.id).run();
+      return json({ ok: true });
+    }
+    if (m === 'GET') {
+      if (!row.thumb) return json({ error: 'No thumbnail' }, 404);
+      const up = await b2Fetch(env, 'GET', 't/' + row.id, { expires: 120 });
+      if (!up.ok) return json({ error: 'No thumbnail' }, 404);
+      const out = new Headers({
+        'content-type': row.thumb,
+        'cache-control': 'private, max-age=31536000, immutable',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
+      });
+      const cl = up.headers.get('content-length');
+      if (cl) out.set('content-length', cl);
+      return new Response(up.body, { status: 200, headers: out });
+    }
   }
 
   if ((mm = p.match(/^\/api\/files\/([\w-]+)\/download$/)) && m === 'GET') {
@@ -354,7 +515,10 @@ async function api(request, env, ctx, url) {
       const kids = row.type === 'folder' ? await descendants(env, row.id) : [];
       const files = [...kids.filter((k) => k.type === 'file'), ...(row.type === 'file' ? [row] : [])];
       const batch = files.slice(0, PURGE_BATCH);
-      for (const f of batch) await b2Delete(env, f.b2_key);
+      for (const f of batch) {
+        await b2Delete(env, f.b2_key);
+        if (f.thumb) await b2Delete(env, 't/' + f.id);
+      }
       if (batch.length) {
         await env.DB.batch(batch.map((f) => env.DB.prepare('DELETE FROM items WHERE id = ?').bind(f.id)));
       }
