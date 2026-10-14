@@ -128,6 +128,8 @@ button.avatar{cursor:pointer;font:700 14px Inter}
 #sortSel{background:var(--panel2);border:1px solid var(--line);color:var(--silver);padding:8px 10px;border-radius:6px;font:500 13px Inter;cursor:pointer}
 #sortSel:hover{border-color:var(--red);color:#fff}
 #sortSel option{background:var(--panel2);color:var(--text)}
+.box video{width:100%;max-height:68vh;border-radius:6px;background:#000;display:block}
+.box audio{width:100%;display:block}
 </style>
 </head>
 <body>
@@ -233,6 +235,8 @@ const baseName=n=>{const i=n.lastIndexOf('.');return i>0?n.slice(0,i):n};
 const cmpName=(a,b)=>nat.compare(baseName(a),baseName(b))||nat.compare(a,b);
 const ext=n=>(n.split('.').pop()||'').toLowerCase();
 const isImg=n=>['png','jpg','jpeg','gif','webp','avif','bmp'].includes(ext(n));
+const isVid=n=>['mp4','m4v','webm','mov','ogv'].includes(ext(n));
+const isAud=n=>['mp3','m4a','aac','wav','ogg','oga','opus','flac'].includes(ext(n));
 const isText=n=>['txt','md','json','csv','log','xml','yml','yaml','ini'].includes(ext(n));
 const dlUrl=(id,inline)=>`/api/files/${id}/download${inline?'?inline=1':''}`;
 function fmt(b){if(!b)return '—';const u=['B','KB','MB','GB'];let i=0;while(b>=1000&&i<3){b/=1000;i++}return b.toFixed(i?1:0)+' '+u[i]}
@@ -374,7 +378,7 @@ function download(i){
   const a=document.createElement('a');a.href=dlUrl(i.id);a.download=i.name;document.body.appendChild(a);a.click();a.remove();toast('Downloading '+i.name);
 }
 function modal(html){$('#box').innerHTML=html;$('#modal').classList.add('on')}
-function closeModal(){$('#modal').classList.remove('on')}
+function closeModal(){$('#modal').classList.remove('on');$('#box').innerHTML=''}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal'||e.target.dataset.close!==undefined)closeModal()});
 document.addEventListener('keydown',e=>{
   if($('#viewer').classList.contains('on')){
@@ -388,7 +392,9 @@ document.addEventListener('keydown',e=>{
 async function preview(i){
   if(isImg(i.name))return openViewer(i);
   let body;
-  if(isText(i.name)&&i.size<=5e7)body=`<pre id="pv">Loading…</pre>`;
+  if(isVid(i.name))body=`<video src="${dlUrl(i.id,true)}" controls autoplay playsinline preload="metadata"></video>`;
+  else if(isAud(i.name))body=`<audio src="${dlUrl(i.id,true)}" controls autoplay preload="metadata"></audio>`;
+  else if(isText(i.name)&&i.size<=5e7)body=`<pre id="pv">Loading…</pre>`;
   else body=`<p style="color:var(--muted)">No preview available for this file type.<br>${fmt(i.size)} · modified ${ago(i.mod)}</p>`;
   modal(`<h3>${esc(i.name)}</h3>${body}<div class="row-btns"><button class="btn" data-close>Close</button><button class="btn primary" id="pvdl">Download</button></div>`);
   $('#pvdl').onclick=()=>download(i);
