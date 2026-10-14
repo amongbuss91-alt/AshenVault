@@ -36,13 +36,16 @@ export const uriEncode = (s) =>
  * @param {string} o.secret
  * @param {number} [o.expires=900] seconds
  * @param {Date}   [o.now]
+ * @param {object} [o.query]  extra signed query params (e.g. partNumber, uploadId, uploads)
+ * @param {string} [o.scheme] https (default) or http
  */
-export async function sigv4Presign({ method, host, path, region, keyId, secret, expires = 900, now = new Date() }) {
+export async function sigv4Presign({ method, host, path, region, keyId, secret, expires = 900, now = new Date(), query = {}, scheme = 'https' }) {
   const amz = now.toISOString().replace(/[:-]|\.\d{3}/g, ''); // 20260101T000000Z
   const date = amz.slice(0, 8);
   const scope = `${date}/${region}/s3/aws4_request`;
 
   const params = {
+    ...query,
     'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
     'X-Amz-Credential': `${keyId}/${scope}`,
     'X-Amz-Date': amz,
@@ -63,5 +66,5 @@ export async function sigv4Presign({ method, host, path, region, keyId, secret, 
   const kSigning = await hmac(kService, 'aws4_request');
   const signature = hex(await hmac(kSigning, toSign));
 
-  return `https://${host}${path}?${qs}&X-Amz-Signature=${signature}`;
+  return `${scheme}://${host}${path}?${qs}&X-Amz-Signature=${signature}`;
 }
