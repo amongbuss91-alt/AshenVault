@@ -6,6 +6,11 @@ const SESSION_TTL = 7 * 24 * 3600; // 7 days
 const COOKIE = 'av_session';
 const PURGE_BATCH = 30; // keep subrequests low on the Workers free plan
 const SAFE_IMG = /^image\/(png|jpe?g|gif|webp|avif|bmp)$/i;
+const MEDIA = {
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', ogv: 'video/ogg',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg',
+  oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac',
+};
 const TEXT_EXT = new Set(['txt', 'md', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'ini', 'js', 'css', 'html']);
 
 const enc = new TextEncoder();
@@ -154,6 +159,9 @@ async function serveFile(env, request, row, inline) {
     if (SAFE_IMG.test(mime)) {
       type = mime;
       disp = 'inline';
+    } else if (MEDIA[ext]) {
+      type = MEDIA[ext];
+      disp = 'inline';
     } else if (mime.startsWith('text/') || TEXT_EXT.has(ext)) {
       type = 'text/plain; charset=utf-8';
       disp = 'inline';
@@ -167,6 +175,8 @@ async function serveFile(env, request, row, inline) {
     'content-security-policy': "default-src 'none'; sandbox",
     'cache-control': 'private, no-store',
   });
+  if (disp === 'inline' && SAFE_IMG.test(mime)) out.set('cache-control', 'private, max-age=3600');
+  if (disp === 'inline' && MEDIA[ext]) out.set('accept-ranges', 'bytes');
   for (const h of ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
     const v = up.headers.get(h);
     if (v) out.set(h, v);
