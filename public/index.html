@@ -621,9 +621,16 @@ async function upload(entries,emptyDirs){
         }
         t.textContent='Sealing '+label+'…';
         const init=await api('/api/files/init',{method:'POST',body:{name:f.name,size:f.size,mime:f.type||'application/octet-stream',parent,sha}});
-        const item=init.multipart
-          ? await uploadParts(init,f,label,t)
-          : await putWithProgress(`/api/files/${init.id}/content`,f,p=>{t.textContent='Sealing '+label+' — '+Math.round(p*100)+'%'});
+        let item;
+        if(init.multipart)item=await uploadParts(init,f,label,t);
+        else for(let tr=1;;tr++){
+          try{item=await putWithProgress(`/api/files/${init.id}/content`,f,p=>{t.textContent='Sealing '+label+' — '+Math.round(p*100)+'%'});break}
+          catch(e){
+            if(e.message==='Signed out'||/cap|quota|exceed/i.test(e.message)||tr>=3)throw e;
+            t.textContent='Retrying '+label+'…';
+            await new Promise(r=>setTimeout(r,1500*tr));
+          }
+        }
         patchLocal(item);
         ok++;used+=f.size;
         await thumbForUpload(item,f);
@@ -631,6 +638,7 @@ async function upload(entries,emptyDirs){
       }catch(e){
         if(e.message==='Signed out')break;
         fail++;toast(f.name+': '+e.message);
+        if(/cap|quota|exceed/i.test(e.message)){toast('Backblaze says a limit was hit — stopping. Check Caps & Alerts in Backblaze.');break}
       }
     }
   }catch(e){if(e.message!=='Signed out')toast(e.message)}
