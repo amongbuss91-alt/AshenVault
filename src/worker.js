@@ -146,6 +146,17 @@ async function b2Fetch(env, method, key, { query = {}, body, headers, expires = 
   return fetch(await b2Presign(env, method, key, expires, query), { method, body, headers });
 }
 
+async function b2Err(up, what) {
+  let code = '', msg = '';
+  try {
+    const t = (await up.text()).slice(0, 2000);
+    code = (t.match(/<Code>([^<]*)<\/Code>/) || [])[1] || '';
+    msg = (t.match(/<Message>([^<]*)<\/Message>/) || [])[1] || '';
+  } catch (e) {}
+  const cap = /cap|quota|limit/i.test(code + ' ' + msg) || up.status === 403 && /exceed/i.test(msg);
+  const detail = [code, msg].filter(Boolean).join(': ');
+  return json({ error: what + ' (' + up.status + (detail ? ' — ' + detail : '') + ')', cap }, 502);
+}
 async function b2Delete(env, key) {
   const res = await b2Fetch(env, 'DELETE', key, { expires: 60 });
   if (!res.ok && res.status !== 404) throw new HttpError(502, 'B2 delete failed (' + res.status + ')');
@@ -386,7 +397,7 @@ async function api(request, env, ctx, url) {
       body: len > 0 ? request.body : null,
       headers: { 'content-length': String(len), 'content-type': row.mime || 'application/octet-stream' },
     });
-    if (!up.ok) return json({ error: 'Storage rejected the upload (' + up.status + ')' }, 502);
+    if (!up.ok) return b2Err(up, 'Storage rejected the upload');
     await env.DB.prepare("UPDATE items SET status = 'ready', size = ?, mod = ? WHERE id = ?")
       .bind(len, Date.now(), row.id).run();
     return json(itemOut(await getItem(env, row.id)));
@@ -408,7 +419,7 @@ async function api(request, env, ctx, url) {
       expires: 900,
     });
     const etag = up.headers.get('etag');
-    if (!up.ok || !etag) return json({ error: 'Storage rejected part ' + n + ' (' + up.status + ')' }, 502);
+    if (!up.ok || !etag) return b2Err(up, 'Storage rejected part ' + n);
     await env.DB.batch([
       env.DB.prepare('INSERT OR REPLACE INTO parts (item_id, n, etag, size) VALUES (?, ?, ?, ?)').bind(row.id, n, etag, len),
       env.DB.prepare('UPDATE items SET mod = ? WHERE id = ?').bind(Date.now(), row.id),
@@ -456,7 +467,7 @@ async function api(request, env, ctx, url) {
       const len = parseInt(request.headers.get('content-length') || '', 10);
       if (!(len > 0 && len <= THUMB_MAX)) return json({ error: 'Thumbnail too large' }, 413);
       const up = await b2Fetch(env, 'PUT', 't/' + row.id, { body: request.body, headers: { 'content-length': String(len), 'content-type': ct } });
-      if (!up.ok) return json({ error: 'Storage rejected the thumbnail (' + up.status + ')' }, 502);
+      if (!up.ok) return b2Err(up, 'Storage rejected the thumbnail');
       await env.DB.prepare('UPDATE items SET thumb = ? WHERE id = ?').bind(ct, row.id).run();
       return json({ ok: true });
     }
