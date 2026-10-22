@@ -333,7 +333,7 @@ function actsHTML(i){
   return `<button class="ib" data-a="star" data-id="${i.id}" title="Star">${i.star?'★':'☆'}</button>
   ${i.type==='file'?`<button class="ib" data-a="share" data-id="${i.id}" title="Copy share link">⇪</button>`:''}
   ${i.shared?`<button class="ib" data-a="unshare" data-id="${i.id}" title="Stop sharing">⊘</button>`:''}
-  ${i.type==='file'?`<button class="ib" data-a="dl" data-id="${i.id}" title="Download">⭳</button>`:''}
+  <button class="ib" data-a="dl" data-id="${i.id}" title="${i.type==='folder'?'Download folder':'Download'}">⭳</button>
   <button class="ib" data-a="rename" data-id="${i.id}" title="Rename">✎</button>
   <button class="ib" data-a="del" data-id="${i.id}" title="Delete">🗑</button>`;
 }
@@ -391,7 +391,7 @@ function act(a,i){
       catch{modal(`<h3>Share link</h3><input id="sl" value="${esc(d.url)}" readonly><div class="row-btns"><button class="btn" data-close>Close</button></div>`);$('#sl').select()}
     }
     else if(a==='unshare'){await api(`/api/items/${i.id}/share`,{method:'DELETE'});i.shared=false;render();toast('Sharing stopped')}
-    else if(a==='dl'){download(i)}
+    else if(a==='dl'){i.type==='folder'?await downloadFolder(i):download(i)}
     else if(a==='rename'){rename(i)}
     else if(a==='del'){patchLocal(await api('/api/items/'+i.id,{method:'PATCH',body:{trash:true}}));render();toast('“'+i.name+'” cast into the abyss')}
     else if(a==='restore'){patchLocal(await api('/api/items/'+i.id,{method:'PATCH',body:{trash:false}}));render();toast('Restored')}
@@ -405,6 +405,134 @@ function act(a,i){
 }
 function download(i){
   const a=document.createElement('a');a.href=dlUrl(i.id);a.download=i.name;document.body.appendChild(a);a.click();a.remove();toast('Downloading '+i.name);
+}
+
+/* ---------- folder download ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crcStep=(c,buf)=>{for(let i=0;i<buf.length;i++)c=CRC[(c^buf[i])&255]^(c>>>8);return c};
+function folderFiles(root){
+  const files=[],dirs=[];
+  (function walk(id,prefix){
+    for(const c of items){
+      if(c.parent!==id||c.trash)continue;
+      if(c.type==='folder'){dirs.push(prefix+c.name);walk(c.id,prefix+c.name+'/')}
+      else files.push({item:c,path:prefix+c.name})
+    }
+  })(root.id,'');
+  return {files,dirs};
+}
+const safeName=n=>(n.replace(/[<>:"\/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'')||'_');
+async function fetchFile(item,onChunk){
+  for(let tr=1;;tr++){
+    try{
+      const r=await fetch(dlUrl(item.id),{credentials:'same-origin'});
+      if(r.status===401){showLogin();throw new Error('Signed out')}
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r;
+    }catch(e){
+      if(e.message==='Signed out'||tr>=3)throw e;
+      await new Promise(r=>setTimeout(r,1200*tr));
+    }
+  }
+}
+async function downloadFolder(folder){
+  const {files,dirs}=folderFiles(folder);
+  if(!files.length&&!dirs.length)return toast('That folder is empty');
+  const total=files.reduce((s,f)=>s+f.item.size,0);
+  const direct=typeof window.showDirectoryPicker==='function';
+  const tooBig=!direct&&(total>3.9e9||files.length>65000);
+  const warn=total>1e9?`<p style="color:var(--blood,#c0504d);font-size:13px;line-height:1.5;margin-top:10px">Backblaze's free plan allows about 1 GB of downloads per day, so this may stop partway. Files already saved stay saved; run it again tomorrow and choose the same folder.</p>`:'';
+  const how=direct?'You will pick a place on your computer and the folder is copied there with its subfolders.':'Your browser will save it as one .zip file.';
+  const html=`<h3>Download “${esc(folder.name)}”</h3>
+    <p style="color:var(--silver);font-size:14px;line-height:1.6">${files.length} file${files.length===1?'':'s'}, ${fmt(total)}. ${how}</p>${warn}
+    ${tooBig?`<p style="color:var(--blood,#c0504d);font-size:13px;margin-top:10px">This folder is too large for a single .zip in this browser. Use Chrome or Edge to copy it straight into a folder, or download a smaller subfolder.</p>`:''}
+    <div class="row-btns"><button class="btn" data-close>Cancel</button>${tooBig?'':'<button class="btn primary" id="dfGo">Download</button>'}</div>`;
+  const go=await ask(html,done=>{const b=$('#dfGo');if(b)b.onclick=()=>done(true)});
+  if(!go)return;
+  let root=null;
+  if(direct){
+    try{const parent=await window.showDirectoryPicker({mode:'readwrite'});root=await parent.getDirectoryHandle(safeName(folder.name),{create:true})}
+    catch(e){if(e.name==='AbortError')return;return toast('Could not open that folder: '+e.message)}
+  }
+  const t=toast('Preparing…',true);
+  let n=0,fail=0,stop=false;
+  const parts=[],central=[];let offset=0;
+  const enc=new TextEncoder();
+  try{
+    if(direct){
+      const dcache=new Map();
+      const getDir=async segs=>{
+        let h=root,key='';
+        for(const s of segs){key+='/'+s;if(!dcache.has(key))dcache.set(key,await h.getDirectoryHandle(safeName(s),{create:true}));h=dcache.get(key)}
+        return h;
+      };
+      for(const d of dirs)await getDir(d.split('/'));
+      for(const f of files){
+        n++;t.textContent='Saving ('+n+'/'+files.length+') '+f.item.name;
+        try{
+          const segs=f.path.split('/'),name=segs.pop();
+          const dh=await getDir(segs);
+          const r=await fetchFile(f.item);
+          const w=await (await dh.getFileHandle(safeName(name),{create:true})).createWritable();
+          await r.body.pipeTo(w);
+        }catch(e){
+          if(e.message==='Signed out'){stop=true;break}
+          fail++;toast(f.item.name+': '+e.message);
+          if(fail>=5&&fail===n){toast('Too many failures — stopping. A Backblaze daily limit may have been reached.');stop=true;break}
+        }
+      }
+    }else{
+      const dosDate=d=>{d=new Date(d);return [((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xffff,(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xffff]};
+      const add=(path,chunks,crc,size,mod)=>{
+        const nm=enc.encode(folder.name+'/'+path),[tm,dt]=dosDate(mod||Date.now());
+        const lh=new DataView(new ArrayBuffer(30));
+        lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+        lh.setUint16(10,tm,true);lh.setUint16(12,dt,true);lh.setUint32(14,crc,true);lh.setUint32(18,size,true);lh.setUint32(22,size,true);lh.setUint16(26,nm.length,true);lh.setUint16(28,0,true);
+        parts.push(lh.buffer,nm,...chunks);
+        const ch=new DataView(new ArrayBuffer(46));
+        ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+        ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);ch.setUint32(16,crc,true);ch.setUint32(20,size,true);ch.setUint32(24,size,true);ch.setUint16(28,nm.length,true);
+        ch.setUint32(42,offset,true);
+        central.push(ch.buffer,nm);
+        offset+=30+nm.length+size;
+      };
+      for(const d of dirs){
+        const nm=d+'/';const before=parts.length;
+        // folder entry (no data)
+        const e=enc.encode(folder.name+'/'+nm),[tm,dt]=dosDate(Date.now());
+        const lh=new DataView(new ArrayBuffer(30));
+        lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(10,tm,true);lh.setUint16(12,dt,true);lh.setUint16(26,e.length,true);
+        parts.push(lh.buffer,e);
+        const ch=new DataView(new ArrayBuffer(46));
+        ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);ch.setUint16(28,e.length,true);ch.setUint32(38,0x10,true);ch.setUint32(42,offset,true);
+        central.push(ch.buffer,e);offset+=30+e.length;void before;
+      }
+      for(const f of files){
+        n++;t.textContent='Collecting ('+n+'/'+files.length+') '+f.item.name;
+        try{
+          const r=await fetchFile(f.item);
+          const rd=r.body.getReader(),chunks=[];let crc=0xFFFFFFFF,size=0;
+          for(;;){const {done,value}=await rd.read();if(done)break;crc=crcStep(crc,value);size+=value.length;chunks.push(value)}
+          add(f.path,[new Blob(chunks)],(crc^0xFFFFFFFF)>>>0,size,f.item.mod);
+        }catch(e){
+          if(e.message==='Signed out'){stop=true;break}
+          fail++;toast(f.item.name+': '+e.message);
+          if(fail>=5&&fail===n){toast('Too many failures — stopping. A Backblaze daily limit may have been reached.');stop=true;break}
+        }
+      }
+      if(!stop){
+        const cdSize=central.reduce((s,b)=>s+(b.byteLength??b.length),0);
+        const end=new DataView(new ArrayBuffer(22));
+        const cnt=central.length/2;
+        end.setUint32(0,0x06054b50,true);end.setUint16(8,cnt,true);end.setUint16(10,cnt,true);end.setUint32(12,cdSize,true);end.setUint32(16,offset,true);
+        const blob=new Blob([...parts,...central,end.buffer],{type:'application/zip'});
+        const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=safeName(folder.name)+'.zip';document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+      }
+    }
+  }catch(e){if(e.message!=='Signed out')toast(e.message)}
+  t.remove();
+  if(!stop)toast(fail?('Saved '+(files.length-fail)+' of '+files.length+' files — '+fail+' failed'):'“'+folder.name+'” saved ('+files.length+' files)');
 }
 function modal(html){$('#box').innerHTML=html;$('#modal').classList.add('on')}
 let modalResolve=null;
